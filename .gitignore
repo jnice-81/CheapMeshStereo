@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+.vscode/
+3dmodels/
+Mobile3d/Mobile3d-core/main
