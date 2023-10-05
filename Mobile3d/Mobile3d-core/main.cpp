@@ -66,7 +66,7 @@ cv::Mat intrinsics_to_opencv_intrinsics(cv::Mat& input) {
 
 int main()
 {
-    const std::string base_dir = "C:\\Users\\Admin\\Desktop\\Mobile3d\\Mobile3d\\3dmodels";
+    const std::string base_dir = "C:\\Users\\Admin\\Desktop\\Mobile3d\\3dmodels";
     const std::string project_name = "gerade";
     const std::string projectfolder = base_dir + "\\" + project_name;
 

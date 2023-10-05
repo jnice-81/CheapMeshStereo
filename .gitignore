@@ -31,6 +31,18 @@
 *.out
 *.app
 
+# Linux
 .vscode/
-3dmodels/
 Mobile3d/Mobile3d-core/main
+
+# common
+3dmodels/
+
+#windows
+.vs
+Mobile3d/winlib/
+Debug/
+*.vcxproj
+*.filters
+*.user
+Mobile3d.sln
