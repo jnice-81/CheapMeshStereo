@@ -48,7 +48,8 @@ int main()
     View v1 = views[8];
     View v2 = views[9];
 
-    Reconstruct g;
+    Scene gm(0.01);
+    Reconstruct g(gm);
 
     g.OpenGL2OpenCVView(v1);
     g.OpenGL2OpenCVView(v2);
