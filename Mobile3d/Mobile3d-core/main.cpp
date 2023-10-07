@@ -1,6 +1,8 @@
 #include <json.hpp>
 #include "mob-core/Reconstruct.h"
 
+#define LINUX
+
 using jfile = nlohmann::json;
 
 cv::Mat load_matrix_from_json(nlohmann::json jarray) {
@@ -23,11 +25,15 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
 
 int main()
 {
-    const std::string base_dir = "C:\\Users\\Admin\\Desktop\\Mobile3d\\3dmodels";
-    const std::string project_name = "\\old\\corner";
-    const std::string projectfolder = base_dir + "\\" + project_name;
+    #ifdef LINUX
+        const std::string base_dir = "/home/jannis/Schreibtisch/Mobile3d/3dmodels/";
+    #elif WINDOWS
+        const std::string base_dir = "whatever";
+    #endif
+    const std::string project_name = "old/corner";
+    const std::string projectfolder = base_dir + "/" + project_name;
 
-    std::ifstream arcorefile(projectfolder + "\\ARCoreData.json");
+    std::ifstream arcorefile(projectfolder + "/ARCoreData.json");
     auto arcore = jfile::parse(arcorefile);
 
     std::vector<View> views;
@@ -40,7 +46,11 @@ int main()
         for (const auto& k : obj["pointIDs"]) {
             keyPointIds.insert(k.get<int>());
         }
-        std::string imgpath = projectfolder + "\\images\\" + name + ".jpg";
+        #ifdef LINUX
+            std::string imgpath = projectfolder + "/images/" + name + ".jpg";
+        #elif WINDOWS
+            std::string imgpath = projectfolder + "\\images\\" + name + ".jpg";
+        #endif
         cv::Mat image = cv::imread(imgpath);
         views.emplace_back(image, intrinsics, extrinsics, keyPointIds);
     }
@@ -48,7 +58,7 @@ int main()
     View v1 = views[8];
     View v2 = views[9];
 
-    Scene gm(0.01);
+    Scene gm(0.001);
     Reconstruct g(gm);
 
     g.OpenGL2OpenCVView(v1);
