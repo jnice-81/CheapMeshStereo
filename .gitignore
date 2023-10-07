@@ -42,6 +42,7 @@ Mobile3d/Mobile3d-core/main
 .vs
 Mobile3d/winlib/
 Debug/
+Release/
 *.vcxproj
 *.filters
 *.user

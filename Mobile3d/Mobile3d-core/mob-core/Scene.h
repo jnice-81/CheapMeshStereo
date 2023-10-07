@@ -34,6 +34,7 @@ public:
 	}
 
 	cv::Mat directRender(View& v) {
+		const float zfar = 1.3;
 		cv::Size imgsize = v.image.size();
 		cv::Mat result = cv::Mat::zeros(imgsize, CV_32F);
 		cv::Matx44d extrinsics;
@@ -48,15 +49,17 @@ public:
 		P = intrinsics * extrinsics;
 
 		auto endSurface = surfacePoints.end();
-		const cv::Vec3f toCenter = cv::Vec3f(voxelSideLength * 0.5, voxelSideLength * 0.5, voxelSideLength * 0.5);
+		const float center = (float)voxelSideLength * 0.5f;
+		const cv::Vec3f toCenter = cv::Vec3f(center, center, center);
 		for (auto it = surfacePoints.begin(); it != endSurface; it++) {
 			cv::Vec3f p = it->first;
 			p = p * voxelSideLength + toCenter;
 			cv::Vec4d hp = P * cv::Vec4d(p[0], p[1], p[2], 1.0);
+			double depth = hp[2];
 			hp /= hp[2];
-			cv::Vec2i pdash = cv::Vec2d(hp.val);
-			if (pdash[0] >= 0 && pdash[1] >= 0 && pdash[0] < imgsize.width && pdash[1] < imgsize.height) {
-				result.at<float>(pdash[1], pdash[0]) = 1.0;
+			cv::Vec4i pdash = hp;
+			if (pdash[0] >= 0 && pdash[1] >= 0 && depth > 0 && pdash[0] < imgsize.width && pdash[1] < imgsize.height) {
+				result.at<float>(pdash[1], pdash[0]) = depth / zfar;
 			}
 		}
 

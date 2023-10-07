@@ -48,6 +48,8 @@ private:
 		View v1 = sliding_window.front();
 		View v2 = sliding_window.back();
 
+		MsClock csc;
+
 		cv::Rect roiR = cv::Rect(0, 0, 3, 3);
 		cv::Rect roiT = cv::Rect(3, 0, 1, 3);
 		cv::Mat R = v2.extrinsics(roiR) * v1.extrinsics(roiR).t();
@@ -67,13 +69,16 @@ private:
 		cv::remap(v1.image, rectified_image1, map1x, map1y, cv::INTER_LINEAR);
 		cv::remap(v2.image, rectified_image2, map2x, map2y, cv::INTER_LINEAR);
 
+		csc.printAndReset("Rectify");
+		/*
 		cv::imshow("v1", rectified_image1);
 		cv::imshow("v2", rectified_image2);
 		cv::waitKey(0);
+		*/
 
 		int ndisp = 30 * 16;
 		int mindisp = -(ndisp / 2);
-		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(ndisp, 17);
+		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(ndisp, 21);
 		blocksearcher->setMinDisparity(mindisp);
 		
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
@@ -81,9 +86,12 @@ private:
 		cv::Mat disparity;
 		blocksearcher->compute(rectified_image1, rectified_image2, disparity);
 		disparity /= 16;
-		//disparity.convertTo(disparity, CV_32F, ndisp, 0);
+
+		csc.printAndReset("Disparity");
 
 		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1);
+
+		csc.printAndReset("Add3d");
 	}
 
 	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined) {

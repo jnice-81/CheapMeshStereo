@@ -55,10 +55,11 @@ int main()
     Scene gm(0.001);
     Reconstruct g(gm);
 
-    for (int i = 0; i < views.size(); i++) {
+    //for (int i = views.size()-1; i >= views.size()-2; i--) {
+    for (int i = 8; i < views.size(); i++) {
         g.OpenGL2OpenCVView(views[i]);
         g.add_image(views[i]);
     }
-    cv::Mat out = gm.directRender(views.back());
-    overlay(out, views.back().image);
+    cv::Mat out = gm.directRender(views[8]);
+    overlay(out, views[8].image, 0.5);
 }
