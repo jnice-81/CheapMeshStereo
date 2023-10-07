@@ -5,28 +5,12 @@
 #include <iostream>
 #include <unordered_set>
 #include <list>
+#include <chrono>
 
-
-class Utils {
-public:
-    static cv::Matx44d cvIntrinsicsToDepthIntrinsics(cv::Mat intrinsics, double near, double far) {
-        
-    }
-};
-
+#include "helpers.h"
 #include "View.h"
 #include "Scene.h"
 
-void overlay(cv::Mat depth, cv::Mat img) {
-    cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);
-	img.convertTo(img, CV_32F, 1.0 / 255);
-	
-	cv::Mat overlayed = img + depth;
-	cv::resize(overlayed, overlayed, cv::Size(), 0.5, 0.5);
-	
-	cv::imshow("overlayed", overlayed);
-	cv::waitKey(0);
-}
 
 class Reconstruct {
 public:
@@ -83,8 +67,9 @@ private:
 		cv::remap(v1.image, rectified_image1, map1x, map1y, cv::INTER_LINEAR);
 		cv::remap(v2.image, rectified_image2, map2x, map2y, cv::INTER_LINEAR);
 
-		//cv::imshow("v1", rectified_image1);
-		//cv::imshow("v2", rectified_image2);
+		cv::imshow("v1", rectified_image1);
+		cv::imshow("v2", rectified_image2);
+		cv::waitKey(0);
 
 		int ndisp = 30 * 16;
 		int mindisp = -(ndisp / 2);
@@ -99,9 +84,6 @@ private:
 		//disparity.convertTo(disparity, CV_32F, ndisp, 0);
 
 		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1);
-		cv::Mat render = scene.directRender(v2);
-
-		overlay(render, v2.image);
 	}
 
 	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined) {

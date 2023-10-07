@@ -37,17 +37,24 @@ public:
 		cv::Size imgsize = v.image.size();
 		cv::Mat result = cv::Mat::zeros(imgsize, CV_32F);
 		cv::Matx44d extrinsics;
-		cv::Matx33d intrinsics;
+		cv::Matx44d intrinsics;
+		cv::Matx44d P;
 		v.extrinsics.convertTo(extrinsics, CV_64F);
-		v.intrinsics.convertTo(intrinsics, CV_64F);
+		cv::Mat tmpintr = cv::Mat::zeros(4, 4, CV_64F);
+		v.intrinsics.copyTo(tmpintr(cv::Rect(0, 0, 3, 3)));
+		tmpintr.at<double>(3, 2) = 1;
+		std::cout << tmpintr;
+		tmpintr.convertTo(intrinsics, CV_64F);
+		P = intrinsics * extrinsics;
 
-		for (auto it = surfacePoints.begin(); it != surfacePoints.end(); it++) {
-			cv::Vec3f p = it->second.tmp;
-			cv::Vec4d hp = cv::Vec4d(p[0], p[1], p[2], 1.0);
-			hp = extrinsics * hp;
-			cv::Vec3d tmp = cv::Vec3d(hp.val) / hp[3];
-			tmp = intrinsics * tmp;
-			cv::Vec2i pdash = cv::Vec2d(tmp.val) / tmp[2];
+		auto endSurface = surfacePoints.end();
+		const cv::Vec3f toCenter = cv::Vec3f(voxelSideLength * 0.5, voxelSideLength * 0.5, voxelSideLength * 0.5);
+		for (auto it = surfacePoints.begin(); it != endSurface; it++) {
+			cv::Vec3f p = it->first;
+			p = p * voxelSideLength + toCenter;
+			cv::Vec4d hp = P * cv::Vec4d(p[0], p[1], p[2], 1.0);
+			hp /= hp[2];
+			cv::Vec2i pdash = cv::Vec2d(hp.val);
 			if (pdash[0] >= 0 && pdash[1] >= 0 && pdash[0] < imgsize.width && pdash[1] < imgsize.height) {
 				result.at<float>(pdash[1], pdash[0]) = 1.0;
 			}

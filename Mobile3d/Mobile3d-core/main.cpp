@@ -1,7 +1,7 @@
 #include <json.hpp>
 #include "mob-core/Reconstruct.h"
 
-#define LINUX
+#define WINDOWS
 
 using jfile = nlohmann::json;
 
@@ -27,8 +27,9 @@ int main()
 {
     #ifdef LINUX
         const std::string base_dir = "/home/jannis/Schreibtisch/Mobile3d/3dmodels/";
-    #elif WINDOWS
-        const std::string base_dir = "whatever";
+    #endif
+    #ifdef WINDOWS
+        const std::string base_dir = "C:/Users/Admin/Desktop/Mobile3d/3dmodels";
     #endif
     const std::string project_name = "old/corner";
     const std::string projectfolder = base_dir + "/" + project_name;
@@ -46,23 +47,18 @@ int main()
         for (const auto& k : obj["pointIDs"]) {
             keyPointIds.insert(k.get<int>());
         }
-        #ifdef LINUX
-            std::string imgpath = projectfolder + "/images/" + name + ".jpg";
-        #elif WINDOWS
-            std::string imgpath = projectfolder + "\\images\\" + name + ".jpg";
-        #endif
+        std::string imgpath = projectfolder + "/images/" + name + ".jpg";
         cv::Mat image = cv::imread(imgpath);
         views.emplace_back(image, intrinsics, extrinsics, keyPointIds);
     }
 
-    View v1 = views[8];
-    View v2 = views[9];
-
     Scene gm(0.001);
     Reconstruct g(gm);
 
-    g.OpenGL2OpenCVView(v1);
-    g.OpenGL2OpenCVView(v2);
-    g.add_image(v1);
-    g.add_image(v2);
+    for (int i = 0; i < views.size(); i++) {
+        g.OpenGL2OpenCVView(views[i]);
+        g.add_image(views[i]);
+    }
+    cv::Mat out = gm.directRender(views.back());
+    overlay(out, views.back().image);
 }
