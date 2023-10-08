@@ -8,6 +8,7 @@
 #include <chrono>
 
 #include "helpers.h"
+#include "PyramidalBM.h"
 #include "View.h"
 #include "Scene.h"
 
