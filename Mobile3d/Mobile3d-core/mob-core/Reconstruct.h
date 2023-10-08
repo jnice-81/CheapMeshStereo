@@ -94,6 +94,10 @@ private:
 		csc.printAndReset("Add3d");
 	}
 
+	inline int virtualToRealNormalBufferIdx(int i, int currentWriteLine, int bufferLines) {
+		return (currentWriteLine + i) % bufferLines;
+	}
+
 	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined) {
 		assert(disparity.type() == CV_16S);
 
@@ -104,6 +108,18 @@ private:
 		cv::Matx44d Pback;
 		tmp.convertTo(Pback, CV_64F);
 
+		std::vector<std::vector<cv::Vec3d>> normalBufferPoints;
+		std::vector<std::vector<bool>> isNormalBufferDefined;
+		const int bufferLines = 3;
+		const int minimumAvailable = 2;
+		normalBufferPoints.resize(bufferLines);
+		isNormalBufferDefined.resize(bufferLines);
+		for (int i = 0; i < bufferLines; i++) {
+			normalBufferPoints[i].resize(disparity.cols);
+			isNormalBufferDefined[i].resize(disparity.cols);
+		}
+		int currentWriteLine = 0;
+		bool isBufferFilled = false;
 
 		for (int y = 0; y < disparity.rows; y++) {
 			const short* rptr = disparity.ptr<short>(y);
@@ -113,8 +129,70 @@ private:
 					cv::Vec4d cam = Pback * cv::Vec4d((double)x, (double)y, (double)disp, 1.0);
 					cv::Vec3d pos = cv::Vec3d(cam.val) / cam[3];
 
-					scene.addPoint(pos);
-				}	
+					normalBufferPoints[currentWriteLine][x] = pos;
+					isNormalBufferDefined[currentWriteLine][x] = true;
+					//scene.addPoint(pos);
+				}
+				else {
+					isNormalBufferDefined[currentWriteLine][x] = false;
+				}
+			}
+
+			currentWriteLine = (currentWriteLine + 1) % bufferLines;
+			isBufferFilled = isBufferFilled || currentWriteLine == 0;
+			if (isBufferFilled) {
+
+				for (int j = 0; j < disparity.cols - bufferLines; j++) {
+					int currentIdxY = virtualToRealNormalBufferIdx(bufferLines / 2, currentWriteLine, bufferLines);
+					int currentIdxX = j + bufferLines / 2;
+					if (!isNormalBufferDefined[currentIdxY][currentIdxX]) {
+						continue;
+					}
+
+					cv::Vec3f left = cv::Vec3f::zeros();
+					cv::Vec3f bottom = cv::Vec3f::zeros();
+					int countDefLeft = 0;
+					int countDefBottom = 0;
+
+					for (int k = 0; k < bufferLines; k++) {
+						int yidx = virtualToRealNormalBufferIdx(k, currentWriteLine, bufferLines);
+						for (int z = 0; z < bufferLines -1; z++) {
+							int xidx = z + j;
+							int nextX = xidx + 1;
+
+							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[yidx][nextX]) {
+								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[yidx][nextX];
+								left += c / cv::norm(c);
+								countDefLeft += 1;
+							}
+						}
+					}
+
+					for (int k = 0; k < bufferLines-1; k++) {
+						int yidx = virtualToRealNormalBufferIdx(k, currentWriteLine, bufferLines);
+						int nextY = virtualToRealNormalBufferIdx(k+1, currentWriteLine, bufferLines);
+						for (int z = 0; z < bufferLines; z++) {
+							int xidx = z + j;
+
+							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[nextY][xidx]) {
+								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[nextY][xidx];
+								bottom += c / cv::norm(c);
+								countDefBottom += 1;
+							}
+						}
+					}
+
+					if (countDefBottom >= minimumAvailable && countDefLeft >= minimumAvailable) {
+						left /= countDefLeft;
+						bottom /= countDefBottom;
+
+						cv::Vec3f n = left.cross(bottom);
+						n = n / cv::norm(n);
+						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
+
+						scene.addPoint(p, n);
+					}
+				}
 			}
 		}
 	}

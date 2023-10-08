@@ -56,10 +56,13 @@ int main()
     Reconstruct g(gm);
 
     //for (int i = views.size()-1; i >= views.size()-2; i--) {
-    for (int i = 8; i < views.size(); i++) {
+    for (int i = 5; i < views.size(); i++) {
         g.OpenGL2OpenCVView(views[i]);
         g.add_image(views[i]);
     }
-    cv::Mat out = gm.directRender(views[8]);
-    overlay(out, views[8].image, 0.5);
+    cv::Mat out = gm.directRender(views[8], false);
+    cv::resize(out, out, cv::Size(), 0.8, 0.8);
+    cv::imshow("q", out);
+    cv::waitKey(0);
+    //overlay(out, views[8].image, 0.5);
 }

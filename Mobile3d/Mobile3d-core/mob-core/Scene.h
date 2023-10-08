@@ -2,10 +2,7 @@
 
 class ScenePoint {
 public:
-	cv::Vec3f tmp;
-
-private:
-	unsigned short hit_count;
+	cv::Vec3f normal;
 };
 
 // Correct?
@@ -26,17 +23,24 @@ public:
 		this->voxelSideLength = voxelSideLength;
 	}
 
-	inline void addPoint(cv::Vec3f p) {
-		cv::Vec3i q = p / voxelSideLength;
+	inline void addPoint(cv::Vec3f point, cv::Vec3f normal) {
+		cv::Vec3i q = point / voxelSideLength;
 		ScenePoint s;
-		s.tmp = p;
+		s.normal = normal;
 		surfacePoints.insert(std::make_pair(q, s));
 	}
 
-	cv::Mat directRender(View& v) {
+	cv::Mat directRender(View& v, bool renderNormals = false) {
 		const float zfar = 1.3;
 		cv::Size imgsize = v.image.size();
-		cv::Mat result = cv::Mat::zeros(imgsize, CV_32F);
+		cv::Mat result;
+		if (renderNormals) {
+			result = cv::Mat::zeros(imgsize, CV_32FC3);
+		}
+		else {
+			result = cv::Mat::zeros(imgsize, CV_32F);
+		}
+		 
 		cv::Matx44d extrinsics;
 		cv::Matx44d intrinsics;
 		cv::Matx44d P;
@@ -44,7 +48,6 @@ public:
 		cv::Mat tmpintr = cv::Mat::zeros(4, 4, CV_64F);
 		v.intrinsics.copyTo(tmpintr(cv::Rect(0, 0, 3, 3)));
 		tmpintr.at<double>(3, 2) = 1;
-		std::cout << tmpintr;
 		tmpintr.convertTo(intrinsics, CV_64F);
 		P = intrinsics * extrinsics;
 
@@ -59,7 +62,14 @@ public:
 			hp /= hp[2];
 			cv::Vec4i pdash = hp;
 			if (pdash[0] >= 0 && pdash[1] >= 0 && depth > 0 && pdash[0] < imgsize.width && pdash[1] < imgsize.height) {
-				result.at<float>(pdash[1], pdash[0]) = depth / zfar;
+				if (renderNormals) {
+					cv::Vec3f n = it->second.normal;
+					n = (n + cv::Vec3f::ones() * 1.5) / 3;
+					result.at<cv::Vec3f>(pdash[1], pdash[0]) = n;
+				}
+				else {
+					result.at<float>(pdash[1], pdash[0]) = depth / zfar;
+				}
 			}
 		}
 
