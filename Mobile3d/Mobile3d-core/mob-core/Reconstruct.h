@@ -149,8 +149,8 @@ private:
 						continue;
 					}
 
-					cv::Vec3f left = cv::Vec3f::zeros();
-					cv::Vec3f bottom = cv::Vec3f::zeros();
+					cv::Vec3f left = vecZeros<cv::Vec3f>();
+					cv::Vec3f bottom = vecZeros<cv::Vec3f>();
 					int countDefLeft = 0;
 					int countDefBottom = 0;
 

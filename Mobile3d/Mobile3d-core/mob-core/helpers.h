@@ -29,3 +29,13 @@ public:
 
 	std::chrono::system_clock::time_point startTime;
 };
+
+template<typename T> inline T vecZeros() {
+	auto g = T::zeros();
+	return T(g.val);
+}
+
+template<typename T> inline T vecOnes() {
+	auto g = T::ones();
+	return T(g.val);
+}
