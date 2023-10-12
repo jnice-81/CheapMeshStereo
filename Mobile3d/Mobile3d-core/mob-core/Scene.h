@@ -72,6 +72,16 @@ public:
 		return renderHelper.projectPoint(getCenterOfVoxel(point));
 	}
 
+	void export_xyz(std::string path) {
+		std::ofstream f(path, std::ios_base::out);
+		for(auto t : surfacePoints) {
+			cv::Vec3f v = addVoxelCenter(((cv::Vec3f)t.first) * voxelSideLength);
+			cv::Vec3f n = t.second.normal;
+			f << v[0] << " " << v[1] << " " << v[2] << " " << n[0] << " " << n[1] << " " << n[2] << std::endl;
+		}
+		f.close();
+	}
+
 	cv::Mat directRender(View& v, bool renderNormals = false) {
 		const float zfar = 1.3;
 		cv::Size imgsize = v.image.size();

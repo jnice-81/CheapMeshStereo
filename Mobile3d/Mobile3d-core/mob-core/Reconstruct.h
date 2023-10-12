@@ -187,7 +187,7 @@ private:
 						left /= countDefLeft;
 						bottom /= countDefBottom;
 
-						cv::Vec3f n = left.cross(bottom);
+						cv::Vec3f n = - left.cross(bottom);
 						n = n / cv::norm(n);
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
 
