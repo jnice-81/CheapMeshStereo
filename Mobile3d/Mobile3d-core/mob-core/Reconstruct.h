@@ -8,6 +8,7 @@
 #include <chrono>
 
 #include "helpers.h"
+#include "PyramidalBM.h"
 #include "View.h"
 #include "Scene.h"
 
@@ -149,8 +150,8 @@ private:
 						continue;
 					}
 
-					cv::Vec3f left = cv::Vec3f::zeros();
-					cv::Vec3f bottom = cv::Vec3f::zeros();
+					cv::Vec3f left = vecZeros<cv::Vec3f>();
+					cv::Vec3f bottom = vecZeros<cv::Vec3f>();
 					int countDefLeft = 0;
 					int countDefBottom = 0;
 
@@ -186,7 +187,7 @@ private:
 						left /= countDefLeft;
 						bottom /= countDefBottom;
 
-						cv::Vec3f n = left.cross(bottom);
+						cv::Vec3f n = - left.cross(bottom);
 						n = n / cv::norm(n);
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
 
