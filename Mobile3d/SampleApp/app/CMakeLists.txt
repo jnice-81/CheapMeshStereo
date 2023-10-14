@@ -20,6 +20,12 @@
 
 cmake_minimum_required(VERSION 3.4.1)
 
+# Import Opencv
+add_library( lib_opencv SHARED IMPORTED )
+set_target_properties(lib_opencv PROPERTIES IMPORTED_LOCATION
+                    ${OPENCV_INCLUDE}/libs/${ANDROID_ABI}/libopencv_java4.so
+                    INTERFACE_INCLUDE_DIRECTORIES ${OPENCV_INCLUDE}/jni/include)
+
 # Import the ARCore (Google Play Services for AR) library.
 add_library(arcore SHARED IMPORTED)
 set_target_properties(arcore PROPERTIES IMPORTED_LOCATION
@@ -49,4 +55,5 @@ target_link_libraries(hello_ar_native
                       log
                       GLESv2
                       glm
-                      arcore)
+                      arcore
+                      lib_opencv)

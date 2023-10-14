@@ -38,11 +38,12 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++17", "-Wall"
-                arguments "-DANDROID_STL=c++_static",
+                cppFlags "-std=c++17", "-Wall", ""
+                arguments "-DANDROID_STL=c++_shared",
                         "-DARCORE_LIBPATH=${arcore_libpath}/jni",
                         "-DARCORE_INCLUDE=${project.rootDir}/../androidlib/arcore/include",
-                        "-DGLM_INCLUDE=${project.rootDir}/../androidlib/glm"
+                        "-DGLM_INCLUDE=${project.rootDir}/../androidlib/glm",
+                        "-DOPENCV_INCLUDE=${project.rootDir}/../androidlib/OpenCV-android-sdk-4.8.0/sdk/native"
             }
         }
         ndk {

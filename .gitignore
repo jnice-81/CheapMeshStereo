@@ -47,3 +47,6 @@ Release/
 *.filters
 *.user
 Mobile3d.sln
+
+#libs
+OpenCV-android-sdk-4.8.0/
