@@ -67,20 +67,6 @@ class HelloArApplication {
   void OnDrawFrame(bool depthColorVisualizationEnabled,
                    bool useDepthForOcclusion);
 
-  // OnTouched is called on the OpenGL thread after the user touches the screen.
-  // @param x: x position on the screen (pixels).
-  // @param y: y position on the screen (pixels).
-  void OnTouched(float x, float y);
-
-  // Returns true if any planes have been detected.  Used for hiding the
-  // "searching for planes" snackbar.
-  bool HasDetectedPlanes() const { return plane_count_ > 0; }
-
-  // Returns true if depth is supported.
-  bool IsDepthSupported();
-
-  void OnSettingsChange(bool is_instant_placement_enabled);
-
  private:
   glm::mat3 GetTextureTransformMatrix(const ArSession* session,
                                       const ArFrame* frame);
@@ -88,11 +74,9 @@ class HelloArApplication {
   ArFrame* ar_frame_ = nullptr;
 
   bool install_requested_ = false;
-  bool calculate_uv_transform_ = false;
   int width_ = 1;
   int height_ = 1;
   int display_rotation_ = 0;
-  bool is_instant_placement_enabled_ = true;
 
   AAssetManager* const asset_manager_;
 
@@ -107,15 +91,8 @@ class HelloArApplication {
 
   PointCloudRenderer point_cloud_renderer_;
   BackgroundRenderer background_renderer_;
-  PlaneRenderer plane_renderer_;
-  ObjRenderer andy_renderer_;
-  Texture depth_texture_;
-
-  int32_t plane_count_ = 0;
 
   void ConfigureSession();
-
-  void UpdateAnchorColor(ColoredAnchor* colored_anchor);
 };
 }  // namespace hello_ar
 

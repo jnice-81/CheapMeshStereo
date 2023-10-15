@@ -16,8 +16,6 @@
 
 package com.google.ar.core.examples.c.helloar;
 
-import android.content.DialogInterface;
-import android.content.res.Resources;
 import android.hardware.display.DisplayManager;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
@@ -25,100 +23,31 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.GestureDetector;
-import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
-import android.widget.PopupMenu;
 import android.widget.Toast;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import com.google.android.material.snackbar.Snackbar;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-/**
- * This is a simple example that shows how to create an augmented reality (AR) application using the
- * ARCore C API.
- */
 public class HelloArActivity extends AppCompatActivity
     implements GLSurfaceView.Renderer, DisplayManager.DisplayListener {
   private static final String TAG = HelloArActivity.class.getSimpleName();
-  private static final int SNACKBAR_UPDATE_INTERVAL_MILLIS = 1000; // In milliseconds.
-  private static final int NUM_DEPTH_SETTINGS_CHECKBOXES = 2;
-  private static final int NUM_INSTANT_PLACEMENT_SETTINGS_CHECKBOXES = 1;
-
   private GLSurfaceView surfaceView;
-
   private boolean viewportChanged = false;
   private int viewportWidth;
   private int viewportHeight;
 
-  private final DepthSettings depthSettings = new DepthSettings();
-  private boolean[] depthSettingsMenuDialogCheckboxes = new boolean[NUM_DEPTH_SETTINGS_CHECKBOXES];
-
-  private final InstantPlacementSettings instantPlacementSettings = new InstantPlacementSettings();
-  private boolean[] instantPlacementSettingsMenuDialogCheckboxes =
-      new boolean[NUM_INSTANT_PLACEMENT_SETTINGS_CHECKBOXES];
-
   // Opaque native pointer to the native application instance.
   private long nativeApplication;
-  private GestureDetector gestureDetector;
-
-  private Snackbar snackbar;
-  private Handler planeStatusCheckingHandler;
-  private final Runnable planeStatusCheckingRunnable =
-      new Runnable() {
-        @Override
-        public void run() {
-          // The runnable is executed on main UI thread.
-          try {
-            if (JniInterface.hasDetectedPlanes(nativeApplication)) {
-              if (snackbar != null) {
-                snackbar.dismiss();
-              }
-              snackbar = null;
-            } else {
-              planeStatusCheckingHandler.postDelayed(
-                  planeStatusCheckingRunnable, SNACKBAR_UPDATE_INTERVAL_MILLIS);
-            }
-          } catch (Exception e) {
-            Log.e(TAG, e.getMessage());
-          }
-        }
-      };
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_main);
     surfaceView = (GLSurfaceView) findViewById(R.id.surfaceview);
-
-    // Set up touch listener.
-    gestureDetector =
-        new GestureDetector(
-            this,
-            new GestureDetector.SimpleOnGestureListener() {
-              @Override
-              public boolean onSingleTapUp(final MotionEvent e) {
-                // For devices that support the Depth API, shows a dialog to suggest enabling
-                // depth-based occlusion. This dialog needs to be spawned on the UI thread.
-                HelloArActivity.this.runOnUiThread(() -> showOcclusionDialogIfNeeded());
-
-                surfaceView.queueEvent(
-                    () -> JniInterface.onTouched(nativeApplication, e.getX(), e.getY()));
-                return true;
-              }
-
-              @Override
-              public boolean onDown(MotionEvent e) {
-                return true;
-              }
-            });
-
-    surfaceView.setOnTouchListener(
-        (View v, MotionEvent event) -> gestureDetector.onTouchEvent(event));
 
     // Set up renderer.
     surfaceView.setPreserveEGLContextOnPause(true);
@@ -130,34 +59,6 @@ public class HelloArActivity extends AppCompatActivity
 
     JniInterface.assetManager = getAssets();
     nativeApplication = JniInterface.createNativeApplication(getAssets());
-
-    planeStatusCheckingHandler = new Handler();
-
-    depthSettings.onCreate(this);
-    instantPlacementSettings.onCreate(this);
-    ImageButton settingsButton = findViewById(R.id.settings_button);
-    settingsButton.setOnClickListener(
-        new View.OnClickListener() {
-          @Override
-          public void onClick(View v) {
-            PopupMenu popup = new PopupMenu(HelloArActivity.this, v);
-            popup.setOnMenuItemClickListener(HelloArActivity.this::settingsMenuClick);
-            popup.inflate(R.menu.settings_menu);
-            popup.show();
-          }
-        });
-  }
-
-  /** Menu button to launch feature specific settings. */
-  protected boolean settingsMenuClick(MenuItem item) {
-    if (item.getItemId() == R.id.depth_settings) {
-      launchDepthSettingsMenuDialog();
-      return true;
-    } else if (item.getItemId() == R.id.instant_placement_settings) {
-      launchInstantPlacementSettingsMenuDialog();
-      return true;
-    }
-    return false;
   }
 
   @Override
@@ -171,19 +72,12 @@ public class HelloArActivity extends AppCompatActivity
     }
 
     try {
-      JniInterface.onSettingsChange(
-        nativeApplication, instantPlacementSettings.isInstantPlacementEnabled());
       JniInterface.onResume(nativeApplication, getApplicationContext(), this);
       surfaceView.onResume();
     } catch (Exception e) {
       Log.e(TAG, "Exception creating session", e);
-      displayInSnackbar(e.getMessage());
       return;
     }
-
-    displayInSnackbar("Searching for surfaces...");
-    planeStatusCheckingHandler.postDelayed(
-        planeStatusCheckingRunnable, SNACKBAR_UPDATE_INTERVAL_MILLIS);
 
     // Listen to display changed events to detect 180° rotation, which does not cause a config
     // change or view resize.
@@ -195,8 +89,6 @@ public class HelloArActivity extends AppCompatActivity
     super.onPause();
     surfaceView.onPause();
     JniInterface.onPause(nativeApplication);
-
-    planeStatusCheckingHandler.removeCallbacks(planeStatusCheckingRunnable);
 
     getSystemService(DisplayManager.class).unregisterDisplayListener(this);
   }
@@ -258,8 +150,8 @@ public class HelloArActivity extends AppCompatActivity
       }
       JniInterface.onGlSurfaceDrawFrame(
           nativeApplication,
-          depthSettings.depthColorVisualizationEnabled(),
-          depthSettings.useDepthForOcclusion());
+          false,
+          false);
     }
   }
 
@@ -275,118 +167,6 @@ public class HelloArActivity extends AppCompatActivity
       }
       finish();
     }
-  }
-
-  /**
-   * Display the message in the snackbar.
-   */
-  private void displayInSnackbar(String message) {
-    snackbar =
-        Snackbar.make(
-            HelloArActivity.this.findViewById(android.R.id.content),
-            message, Snackbar.LENGTH_INDEFINITE);
-
-    // Set the snackbar background to light transparent black color.
-    snackbar.getView().setBackgroundColor(0xbf323232);
-    snackbar.show();
-  }
-
-  /**
-   * Shows a pop-up dialog on the first call, determining whether the user wants to enable
-   * depth-based occlusion. The result of this dialog can be retrieved with useDepthForOcclusion().
-   */
-  private void showOcclusionDialogIfNeeded() {
-    boolean isDepthSupported = JniInterface.isDepthSupported(nativeApplication);
-    if (!depthSettings.shouldShowDepthEnableDialog() || !isDepthSupported) {
-      return; // Don't need to show dialog.
-    }
-
-    // Asks the user whether they want to use depth-based occlusion.
-    new AlertDialog.Builder(this)
-        .setTitle(R.string.options_title_with_depth)
-        .setMessage(R.string.depth_use_explanation)
-        .setPositiveButton(
-            R.string.button_text_enable_depth,
-            (DialogInterface dialog, int which) -> {
-              depthSettings.setUseDepthForOcclusion(true);
-            })
-        .setNegativeButton(
-            R.string.button_text_disable_depth,
-            (DialogInterface dialog, int which) -> {
-              depthSettings.setUseDepthForOcclusion(false);
-            })
-        .show();
-  }
-
-  private void launchInstantPlacementSettingsMenuDialog() {
-    resetSettingsMenuDialogCheckboxes();
-    Resources resources = getResources();
-    new AlertDialog.Builder(this)
-        .setTitle(R.string.options_title_instant_placement)
-        .setMultiChoiceItems(
-            resources.getStringArray(R.array.instant_placement_options_array),
-            instantPlacementSettingsMenuDialogCheckboxes,
-            (DialogInterface dialog, int which, boolean isChecked) ->
-                instantPlacementSettingsMenuDialogCheckboxes[which] = isChecked)
-        .setPositiveButton(
-            R.string.done,
-            (DialogInterface dialogInterface, int which) -> applySettingsMenuDialogCheckboxes())
-        .setNegativeButton(
-            android.R.string.cancel,
-            (DialogInterface dialog, int which) -> resetSettingsMenuDialogCheckboxes())
-        .show();
-  }
-
-  /** Shows checkboxes to the user to facilitate toggling of depth-based effects. */
-  private void launchDepthSettingsMenuDialog() {
-    // Retrieves the current settings to show in the checkboxes.
-    resetSettingsMenuDialogCheckboxes();
-
-    // Shows the dialog to the user.
-    Resources resources = getResources();
-    boolean isDepthSupported = JniInterface.isDepthSupported(nativeApplication);
-    if (isDepthSupported) {
-      // With depth support, the user can select visualization options.
-      new AlertDialog.Builder(this)
-          .setTitle(R.string.options_title_with_depth)
-          .setMultiChoiceItems(
-              resources.getStringArray(R.array.depth_options_array),
-              depthSettingsMenuDialogCheckboxes,
-              (DialogInterface dialog, int which, boolean isChecked) ->
-                  depthSettingsMenuDialogCheckboxes[which] = isChecked)
-          .setPositiveButton(
-              R.string.done,
-              (DialogInterface dialogInterface, int which) -> applySettingsMenuDialogCheckboxes())
-          .setNegativeButton(
-              android.R.string.cancel,
-              (DialogInterface dialog, int which) -> resetSettingsMenuDialogCheckboxes())
-          .show();
-    } else {
-      // Without depth support, no settings are available.
-      new AlertDialog.Builder(this)
-          .setTitle(R.string.options_title_without_depth)
-          .setPositiveButton(
-              R.string.done,
-              (DialogInterface dialogInterface, int which) -> applySettingsMenuDialogCheckboxes())
-          .show();
-    }
-  }
-
-  private void applySettingsMenuDialogCheckboxes() {
-    depthSettings.setUseDepthForOcclusion(depthSettingsMenuDialogCheckboxes[0]);
-    depthSettings.setDepthColorVisualizationEnabled(depthSettingsMenuDialogCheckboxes[1]);
-    instantPlacementSettings.setInstantPlacementEnabled(
-        instantPlacementSettingsMenuDialogCheckboxes[0]);
-
-    JniInterface.onSettingsChange(
-        nativeApplication, instantPlacementSettings.isInstantPlacementEnabled());
-  }
-
-  private void resetSettingsMenuDialogCheckboxes() {
-    depthSettingsMenuDialogCheckboxes[0] = depthSettings.useDepthForOcclusion();
-    depthSettingsMenuDialogCheckboxes[1] = depthSettings.depthColorVisualizationEnabled();
-    instantPlacementSettingsMenuDialogCheckboxes[0] =
-        instantPlacementSettings.isInstantPlacementEnabled();
   }
 
   // DisplayListener methods

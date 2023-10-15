@@ -51,17 +51,6 @@ JNI_METHOD(jlong, createNativeApplication)
   return jptr(new hello_ar::HelloArApplication(asset_manager));
 }
 
-JNI_METHOD(jboolean, isDepthSupported)
-(JNIEnv *, jclass, jlong native_application) {
-  return native(native_application)->IsDepthSupported();
-}
-
-JNI_METHOD(void, onSettingsChange)
-(JNIEnv *, jclass, jlong native_application,
- jboolean is_instant_placement_enabled) {
-  native(native_application)->OnSettingsChange(is_instant_placement_enabled);
-}
-
 JNI_METHOD(void, destroyNativeApplication)
 (JNIEnv *, jclass, jlong native_application) {
   delete native(native_application);
@@ -95,17 +84,6 @@ JNI_METHOD(void, onGlSurfaceDrawFrame)
  jboolean depth_color_visualization_enabled, jboolean use_depth_for_occlusion) {
   native(native_application)
       ->OnDrawFrame(depth_color_visualization_enabled, use_depth_for_occlusion);
-}
-
-JNI_METHOD(void, onTouched)
-(JNIEnv *, jclass, jlong native_application, jfloat x, jfloat y) {
-  native(native_application)->OnTouched(x, y);
-}
-
-JNI_METHOD(jboolean, hasDetectedPlanes)
-(JNIEnv *, jclass, jlong native_application) {
-  return static_cast<jboolean>(
-      native(native_application)->HasDetectedPlanes() ? JNI_TRUE : JNI_FALSE);
 }
 
 JNIEnv *GetJniEnv() {
