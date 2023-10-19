@@ -35,6 +35,21 @@ public:
 		v.intrinsics = cvintrinsics;
 	}
 
+	bool shouldAddImage(View newView, float minNorm) {
+		const cv::Rect roiR = cv::Rect(0, 0, 3, 3);
+		const cv::Rect roiT = cv::Rect(3, 0, 1, 3);
+
+		if (sliding_window.size() == 0) {
+			return true;
+		}
+
+		View oldView = sliding_window.back();
+		cv::Mat R = newView.extrinsics(roiR) * oldView.extrinsics(roiR).t();
+		cv::Mat T = newView.extrinsics(roiT) - R * oldView.extrinsics(roiT);
+
+		return cv::norm(T) >= minNorm;
+	}
+
 	void add_image(View new_view) {
 		sliding_window.push_back(new_view);
 

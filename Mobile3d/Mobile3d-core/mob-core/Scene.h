@@ -83,7 +83,7 @@ public:
 	}
 
 	cv::Mat directRender(View& v, bool renderNormals = false) {
-		const float zfar = 1.3;
+		const float zfar = 1.3f;
 		cv::Size imgsize = v.image.size();
 		cv::Mat result;
 		cv::Mat zBuffer = cv::Mat::ones(imgsize, CV_32FC3) * zfar;

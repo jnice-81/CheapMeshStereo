@@ -1,8 +1,8 @@
 #include <json.hpp>
 #include "mob-core/Reconstruct.h"
 
-//#define WINDOWS
-#define LINUX
+#define WINDOWS
+//#define LINUX
 
 using jfile = nlohmann::json;
 
@@ -63,10 +63,10 @@ int main()
     }
 
     gm.export_xyz("h.xyz");
-    cv::Mat out = gm.directRender(views[8], false);
-    cv::resize(out, out, cv::Size(), 0.8, 0.8);
-    cv::imshow("q", out);
-    cv::waitKey(0);
+    //cv::Mat out = gm.directRender(views[8], false);
+    //cv::resize(out, out, cv::Size(), 0.8, 0.8);
+    //cv::imshow("q", out);
+    //cv::waitKey(0);
     
     //overlay(out, views[8].image, 0.5);
 }
