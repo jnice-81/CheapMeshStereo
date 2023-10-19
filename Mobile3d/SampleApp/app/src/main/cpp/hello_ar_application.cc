@@ -23,6 +23,7 @@
 #include "arcore_c_api.h"
 #include "plane_renderer.h"
 #include "util.h"
+#include "Reconstruct.h"
 
 namespace hello_ar {
 

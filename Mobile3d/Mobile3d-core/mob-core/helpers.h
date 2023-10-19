@@ -1,5 +1,5 @@
 
-
+#ifdef DEBUG
 void overlay(cv::Mat depth, cv::Mat img, float imgAlpha = 0.1) {
 	cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);
 	img.convertTo(img, CV_32F, (1.0 / 255) * imgAlpha);
@@ -10,6 +10,7 @@ void overlay(cv::Mat depth, cv::Mat img, float imgAlpha = 0.1) {
 	cv::imshow("overlayed", overlayed);
 	cv::waitKey(0);
 }
+#endif // DEBUG
 
 class MsClock {
 public:

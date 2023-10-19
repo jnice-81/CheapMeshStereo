@@ -19,6 +19,7 @@
 # Sets the minimum version of CMake required to build the native library.
 
 cmake_minimum_required(VERSION 3.4.1)
+project("MOBILE3D-SAMPLE")
 
 # Import Opencv
 add_library( lib_opencv SHARED IMPORTED )
@@ -48,6 +49,10 @@ add_library(hello_ar_native SHARED
            src/main/cpp/texture.cc
            src/main/cpp/util.cc)
 
+# target_include_directories(hello_ar_native PRIVATE ${MOBILE3D-CORE-INCLUDE})
+add_library(mob-core INTERFACE)
+set_target_properties( mob-core PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${MOBILE3D-CORE-INCLUDE})
+
 target_include_directories(hello_ar_native PRIVATE
            src/main/cpp)
 target_link_libraries(hello_ar_native
@@ -56,4 +61,5 @@ target_link_libraries(hello_ar_native
                       GLESv2
                       glm
                       arcore
-                      lib_opencv)
+                      lib_opencv
+                      mob-core)
