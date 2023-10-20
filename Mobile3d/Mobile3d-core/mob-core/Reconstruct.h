@@ -7,8 +7,13 @@
 #include <list>
 #include <chrono>
 
+#pragma warning(push, 0)
+#include <PreProcessor.h>
+#include <Reconstructors.h>
+#pragma warning(pop)
+
 #include "helpers.h"
-#include "PyramidalBM.h"
+//#include "PyramidalBM.h"
 #include "View.h"
 #include "Scene.h"
 

@@ -1,8 +1,8 @@
 #include <json.hpp>
-#include "mob-core/Reconstruct.h"
 
 #define WINDOWS
 //#define LINUX
+#include "mob-core/Reconstruct.h"
 
 using jfile = nlohmann::json;
 
