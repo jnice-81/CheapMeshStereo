@@ -1,0 +1,3 @@
+[submodule ".\\Mobile3d\\poissonlib\\PoissonRecon"]
+	path = .\\Mobile3d\\poissonlib\\PoissonRecon
+	url = https://github.com/jnice-81/PoissonRecon.git
