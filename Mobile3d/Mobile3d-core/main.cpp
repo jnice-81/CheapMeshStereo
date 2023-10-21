@@ -64,6 +64,7 @@ int main()
     }*/
 
     gm.import_xyz("h.xyz");
+    gm.filterOutliers(10, 200);
     PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(gm, "exp.ply", 10); 
     
 

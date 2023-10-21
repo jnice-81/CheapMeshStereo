@@ -148,7 +148,6 @@ private:
 
 					normalBufferPoints[currentWriteLine][x] = pos;
 					isNormalBufferDefined[currentWriteLine][x] = true;
-					//scene.addPoint(pos);
 				}
 				else {
 					isNormalBufferDefined[currentWriteLine][x] = false;

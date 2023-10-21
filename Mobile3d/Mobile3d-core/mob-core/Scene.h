@@ -71,6 +71,42 @@ public:
 		return renderHelper.projectPoint(getCenterOfVoxel(point));
 	}
 
+	int filterOutliers(const int l1radius, const int minhits) {
+		// This thing is dependent on order, cause as outliers are removed, other points
+		// that were before not outliers might become outliers. Anyway this is not handled here
+		// for the sake of easy code and speed.
+		std::vector<cv::Vec3i> toRemove;
+
+		for (auto it = surfacePoints.begin(); it != surfacePoints.end(); it++) {
+			cv::Vec3i c = it->first;
+			int hits = 0;
+
+			for (int i = -l1radius; i <= l1radius; i++) {
+				for (int j = -l1radius; j <= l1radius; j++) {
+					for (int k = -l1radius; k <= l1radius; k++) {
+						cv::Vec3i h({ c[0] + i, c[1] + j, c[2] + k });
+						if (surfacePoints.find(h) != surfacePoints.end()) {
+							hits++;
+							if (hits >= minhits) {
+								goto END_OF_CHECK;
+							}
+						}
+					}
+				}
+			}
+
+			END_OF_CHECK:
+			if (hits < minhits) {
+				toRemove.push_back(c);
+			}
+		}
+
+		for (auto it = toRemove.begin(); it != toRemove.end(); it++) {
+			surfacePoints.erase(*it);
+		}
+
+		return toRemove.size();
+	}
 
 	void export_xyz(std::string path) {
 		std::ofstream f(path, std::ios_base::out);

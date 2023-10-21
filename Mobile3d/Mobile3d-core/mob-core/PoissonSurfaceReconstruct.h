@@ -112,7 +112,6 @@ public:
 		unsigned int num_threads = std::thread::hardware_concurrency()) {
 
 		ThreadPool::Init(ThreadPool::THREAD_POOL, num_threads);
-		Timer u;
 
 		typedef Reconstructor::Poisson ReconType;
 
@@ -125,7 +124,6 @@ public:
 		implicit.extractLevelSet(vOutput, polygonOutput, extractionParams);
 
 		ThreadPool::Terminate();
-		std::cout << u.wallTime();
 	}
 
 	static void WritePly(std::string fileName, size_t vNum, const Real* vCoordinates, const std::vector< std::vector< Index > >& polygons)
