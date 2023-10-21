@@ -57,16 +57,23 @@ int main()
     Reconstruct g(gm);
 
     //for (int i = views.size()-1; i >= views.size()-2; i--) {
+    /*
     for (int i = 0; i < views.size(); i++) {
         g.OpenGL2OpenCVView(views[i]);
         g.add_image(views[i]);
-    }
+    }*/
 
-    gm.export_xyz("h.xyz");
+    gm.import_xyz("h.xyz");
+    PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(gm, "exp.ply", 10); 
+    
+
+    //gm.export_xyz("h.xyz");
     //cv::Mat out = gm.directRender(views[8], false);
     //cv::resize(out, out, cv::Size(), 0.8, 0.8);
     //cv::imshow("q", out);
     //cv::waitKey(0);
     
     //overlay(out, views[8].image, 0.5);
+
+    return 0;
 }

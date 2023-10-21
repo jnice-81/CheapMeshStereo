@@ -1,4 +1,15 @@
 
+// Correct?
+class VecHash {
+public:
+	std::size_t operator()(const cv::Vec3i& v) const {
+		std::hash<int> hasher;
+		std::size_t hashValue = hasher(v[0]);
+		hashValue ^= hasher(v[1]) + 0x9e3779b9 + (hashValue << 6) + (hashValue >> 2);
+		hashValue ^= hasher(v[2]) + 0x9e3779b9 + (hashValue << 6) + (hashValue >> 2);
+		return hashValue;
+	}
+};
 
 class ScenePoint {
 public:
@@ -32,18 +43,6 @@ public:
 	cv::Matx44d P;
 };
 
-// Correct?
-class VecHash {
-public:
-	std::size_t operator()(const cv::Vec3i& v) const {
-		std::hash<int> hasher;
-		std::size_t hashValue = hasher(v[0]);
-		hashValue ^= hasher(v[1]) + 0x9e3779b9 + (hashValue << 6) + (hashValue >> 2);
-		hashValue ^= hasher(v[2]) + 0x9e3779b9 + (hashValue << 6) + (hashValue >> 2);
-		return hashValue;
-	}
-};
-
 class Scene {
 public:
 	Scene(double voxelSideLength) {
@@ -51,7 +50,7 @@ public:
 	}
 
 	inline void addPoint(cv::Vec3f point, cv::Vec3f normal) {
-		cv::Vec3i q = point / voxelSideLength;
+		cv::Vec3i q = floatToIntVec<int, float, 3>(point / voxelSideLength);
 		ScenePoint s;
 		s.normal = normal;
 		surfacePoints.insert(std::make_pair(q, s));
@@ -64,7 +63,7 @@ public:
 	}
 
 	inline cv::Vec3f getCenterOfVoxel(const cv::Vec3f point) const {
-		cv::Vec3i q = point / voxelSideLength;
+		cv::Vec3i q = floatToIntVec<int, float, 3>(point / voxelSideLength);
 		return addVoxelCenter((cv::Vec3f)q * voxelSideLength);
 	}
 
@@ -72,14 +71,50 @@ public:
 		return renderHelper.projectPoint(getCenterOfVoxel(point));
 	}
 
+
 	void export_xyz(std::string path) {
 		std::ofstream f(path, std::ios_base::out);
 		for (const auto& t : surfacePoints) {
-			cv::Vec3f v = addVoxelCenter(((cv::Vec3f)t.first) * voxelSideLength);
+			cv::Vec3f u = t.first;
+			cv::Vec3f v = addVoxelCenter(u * voxelSideLength);
 			cv::Vec3f n = t.second.normal;
 			f << v[0] << " " << v[1] << " " << v[2] << " " << n[0] << " " << n[1] << " " << n[2] << std::endl;
 		}
 		f.close();
+	}
+
+	void import_xyz(std::string path) {
+		std::ifstream f(path, std::ios_base::in);
+		int idx = 0;
+		float current;
+		cv::Vec3f v;
+		cv::Vec3f n;
+		while (f >> current) {
+			int local = idx % 6;
+			if (local < 3) {
+				v[local] = current;
+			}
+			else {
+				n[local % 3] = current;
+			}
+			if (local == 5) {
+				addPoint(v, n);
+			}
+
+			idx++;
+		}
+		if (idx % 6 != 0) {
+			std::cerr << "Something was wrong when reading the file in import_xyz";
+		}
+		f.close();
+	}
+
+	inline double getVoxelSideLength() {
+		return voxelSideLength;
+	}
+
+	inline std::unordered_map<cv::Vec3i, ScenePoint, VecHash>& getScenePoints() {
+		return surfacePoints;
 	}
 
 	cv::Mat directRender(View& v, bool renderNormals = false) {
@@ -101,7 +136,7 @@ public:
 			cv::Vec3f p = it->first;
 			p = addVoxelCenter(p * voxelSideLength);
 			cv::Vec3f project = rhelper.projectPoint(p);
-			cv::Vec3i pdash = project;
+			cv::Vec3i pdash = floatToIntVec<int, float, 3>(project);
 			if (pdash[0] >= 0 && pdash[1] >= 0 && project[2] > 0 && pdash[0] < imgsize.width && pdash[1] < imgsize.height) {
 				if (renderNormals) {
 					cv::Vec3f n = it->second.normal;
@@ -123,6 +158,20 @@ public:
 		return result;
 	}
 private:
+	template<typename It, typename Ft, unsigned int Dim>
+	static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
+		cv::Vec<It, Dim> g;
+		for (int i = 0; i < Dim; i++) {
+			if (in[i] < 0) {
+				g[i] = (It)(in[i] - 1);
+			}
+			else {
+				g[i] = (It)in[i];
+			}
+		}
+		return g;
+	}
+
 	double voxelSideLength;
 	std::unordered_map<cv::Vec3i, ScenePoint, VecHash> surfacePoints;
 };
