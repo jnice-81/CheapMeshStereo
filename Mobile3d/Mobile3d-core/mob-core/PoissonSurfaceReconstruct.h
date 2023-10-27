@@ -30,7 +30,6 @@ DAMAGE.
 */
 
 #pragma warning(push, 0)
-#include <PreProcessor.h>
 #include <Reconstructors.h>
 #pragma warning(pop)
 
@@ -38,7 +37,6 @@ template <typename Index, typename Real, unsigned int Dim>
 class PoissonSurfaceReconstruct {
 private:
 
-	template< typename Index >
 	struct PolygonStream : public Reconstructor::OutputPolygonStream
 	{
 		// Construct a stream that adds polygons to the vector of polygons
@@ -55,7 +53,6 @@ private:
 		std::vector< std::vector< Index > >& _polygons;
 	};
 
-	template< typename Real, unsigned int Dim >
 	struct VertexStream : public Reconstructor::OutputVertexStream< Real, Dim >
 	{
 		// Construct a stream that adds vertices into the coordinates
@@ -69,7 +66,6 @@ private:
 		std::vector< Real >& _vCoordinates;
 	};
 
-	template<typename Real, unsigned int Dim>
 	struct SceneInputStream : public Reconstructor::InputSampleStream<Real, Dim> {
 
 		SceneInputStream(Scene &s) : scene(s) {
@@ -116,9 +112,9 @@ public:
 		typedef Reconstructor::Poisson ReconType;
 
 		static const unsigned int FEMSig = FEMDegreeAndBType< ReconType::DefaultFEMDegree, ReconType::DefaultFEMBoundary >::Signature;
-		SceneInputStream<Real, Dim> sceneInput(scene);
-		PolygonStream<Index> polygonOutput(polygons);
-		VertexStream<Real, Dim> vOutput(vCoordinates);
+		SceneInputStream sceneInput(scene);
+		PolygonStream polygonOutput(polygons);
+		VertexStream vOutput(vCoordinates);
 
 		ReconType::Implicit<Real, Dim, FEMSig> implicit(sceneInput, solverParams);
 		implicit.extractLevelSet(vOutput, polygonOutput, extractionParams);

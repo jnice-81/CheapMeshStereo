@@ -23,12 +23,14 @@
 #include "arcore_c_api.h"
 #include "plane_renderer.h"
 #include "util.h"
-#include "Reconstruct.h"
+
+#include <android/log.h>
+//#include "PoissonSurfaceReconstruct.h"
 
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager) {}
+    : asset_manager_(asset_manager), collectedScene(0.01), sceneReconstructor(collectedScene) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -108,6 +110,22 @@ void HelloArApplication::OnDisplayGeometryChanged(int display_rotation,
   }
 }
 
+inline cv::Mat glm4x4ToCvMat(glm::mat4 a) {
+    cv::Mat b(4, 4, CV_64F);
+    for(int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            b.at<double>(j, i) = a[i][j];
+        }
+    }
+    /*
+    std::string s;
+    s << b;
+    __android_log_print(ANDROID_LOG_VERBOSE, "mobcore", "%s", s.c_str());
+     */
+
+    return b;
+}
+
 void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
                                      bool useDepthForOcclusion) {
   // Render the scene.
@@ -148,6 +166,18 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     return;
   }
 
+
+  View current(cv::Mat(), glm4x4ToCvMat(projection_mat), glm4x4ToCvMat(view_mat));
+  sceneReconstructor.OpenGL2OpenCVView(current);
+  if (sceneReconstructor.shouldAddImage(current, 0.2)) {
+      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
+      ArImage *img = nullptr;
+      ArFrame_acquireCameraImage(ar_session_, ar_frame_, &img);
+      //current.image =
+      sceneReconstructor.add_image(current);
+      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding");
+  }
+
   // Update and render point cloud.
   ArPointCloud* ar_point_cloud = nullptr;
   ArStatus point_cloud_status =
@@ -171,135 +201,6 @@ void HelloArApplication::ConfigureSession() {
   CHECK(ArSession_configure(ar_session_, ar_config) == AR_SUCCESS);
   ArConfig_destroy(ar_config);
 }
-
-/*
-void HelloArApplication::OnTouched(float x, float y) {
-  if (ar_frame_ != nullptr && ar_session_ != nullptr) {
-    ArHitResultList* hit_result_list = nullptr;
-    ArHitResultList_create(ar_session_, &hit_result_list);
-    CHECK(hit_result_list);
-    if (is_instant_placement_enabled_) {
-      ArFrame_hitTestInstantPlacement(ar_session_, ar_frame_, x, y,
-                                      kApproximateDistanceMeters,
-                                      hit_result_list);
-    } else {
-      ArFrame_hitTest(ar_session_, ar_frame_, x, y, hit_result_list);
-    }
-
-    int32_t hit_result_list_size = 0;
-    ArHitResultList_getSize(ar_session_, hit_result_list,
-                            &hit_result_list_size);
-
-    // The hitTest method sorts the resulting list by distance from the camera,
-    // increasing.  The first hit result will usually be the most relevant when
-    // responding to user input.
-
-    ArHitResult* ar_hit_result = nullptr;
-    for (int32_t i = 0; i < hit_result_list_size; ++i) {
-      ArHitResult* ar_hit = nullptr;
-      ArHitResult_create(ar_session_, &ar_hit);
-      ArHitResultList_getItem(ar_session_, hit_result_list, i, ar_hit);
-
-      if (ar_hit == nullptr) {
-        LOGE("HelloArApplication::OnTouched ArHitResultList_getItem error");
-        return;
-      }
-
-      ArTrackable* ar_trackable = nullptr;
-      ArHitResult_acquireTrackable(ar_session_, ar_hit, &ar_trackable);
-      ArTrackableType ar_trackable_type = AR_TRACKABLE_NOT_VALID;
-      ArTrackable_getType(ar_session_, ar_trackable, &ar_trackable_type);
-      // Creates an anchor if a plane or an oriented point was hit.
-      if (AR_TRACKABLE_PLANE == ar_trackable_type) {
-        ArPose* hit_pose = nullptr;
-        ArPose_create(ar_session_, nullptr, &hit_pose);
-        ArHitResult_getHitPose(ar_session_, ar_hit, hit_pose);
-        int32_t in_polygon = 0;
-        ArPlane* ar_plane = ArAsPlane(ar_trackable);
-        ArPlane_isPoseInPolygon(ar_session_, ar_plane, hit_pose, &in_polygon);
-
-        // Use hit pose and camera pose to check if hittest is from the
-        // back of the plane, if it is, no need to create the anchor.
-        ArPose* camera_pose = nullptr;
-        ArPose_create(ar_session_, nullptr, &camera_pose);
-        ArCamera* ar_camera;
-        ArFrame_acquireCamera(ar_session_, ar_frame_, &ar_camera);
-        ArCamera_getPose(ar_session_, ar_camera, camera_pose);
-        ArCamera_release(ar_camera);
-        float normal_distance_to_plane = util::CalculateDistanceToPlane(
-            *ar_session_, *hit_pose, *camera_pose);
-
-        ArPose_destroy(hit_pose);
-        ArPose_destroy(camera_pose);
-
-        if (!in_polygon || normal_distance_to_plane < 0) {
-          continue;
-        }
-
-        ar_hit_result = ar_hit;
-        break;
-      } else if (AR_TRACKABLE_POINT == ar_trackable_type) {
-        ArPoint* ar_point = ArAsPoint(ar_trackable);
-        ArPointOrientationMode mode;
-        ArPoint_getOrientationMode(ar_session_, ar_point, &mode);
-        if (AR_POINT_ORIENTATION_ESTIMATED_SURFACE_NORMAL == mode) {
-          ar_hit_result = ar_hit;
-          break;
-        }
-      } else if (AR_TRACKABLE_INSTANT_PLACEMENT_POINT == ar_trackable_type) {
-        ar_hit_result = ar_hit;
-      } else if (AR_TRACKABLE_DEPTH_POINT == ar_trackable_type) {
-        // ArDepthPoints are only returned if ArConfig_setDepthMode() is called
-        // with AR_DEPTH_MODE_AUTOMATIC.
-        ar_hit_result = ar_hit;
-      }
-    }
-
-    if (ar_hit_result) {
-      // Note that the application is responsible for releasing the anchor
-      // pointer after using it. Call ArAnchor_release(anchor) to release.
-      ArAnchor* anchor = nullptr;
-      if (ArHitResult_acquireNewAnchor(ar_session_, ar_hit_result, &anchor) !=
-          AR_SUCCESS) {
-        LOGE(
-            "HelloArApplication::OnTouched ArHitResult_acquireNewAnchor error");
-        return;
-      }
-
-      ArTrackingState tracking_state = AR_TRACKING_STATE_STOPPED;
-      ArAnchor_getTrackingState(ar_session_, anchor, &tracking_state);
-      if (tracking_state != AR_TRACKING_STATE_TRACKING) {
-        ArAnchor_release(anchor);
-        return;
-      }
-
-      if (anchors_.size() >= kMaxNumberOfAndroidsToRender) {
-        ArAnchor_release(anchors_[0].anchor);
-        ArTrackable_release(anchors_[0].trackable);
-        anchors_.erase(anchors_.begin());
-      }
-
-      ArTrackable* ar_trackable = nullptr;
-      ArHitResult_acquireTrackable(ar_session_, ar_hit_result, &ar_trackable);
-      // Assign a color to the object for rendering based on the trackable type
-      // this anchor attached to. For AR_TRACKABLE_POINT, it's blue color, and
-      // for AR_TRACKABLE_PLANE, it's green color.
-      ColoredAnchor colored_anchor;
-      colored_anchor.anchor = anchor;
-      colored_anchor.trackable = ar_trackable;
-
-      UpdateAnchorColor(&colored_anchor);
-      anchors_.push_back(colored_anchor);
-
-      ArHitResult_destroy(ar_hit_result);
-      ar_hit_result = nullptr;
-
-      ArHitResultList_destroy(hit_result_list);
-      hit_result_list = nullptr;
-    }
-  }
-}
-*/
 
 // This method returns a transformation matrix that when applied to screen space
 // uvs makes them match correctly with the quad texture coords used to render

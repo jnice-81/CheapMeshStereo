@@ -49,10 +49,11 @@ add_library(hello_ar_native SHARED
            src/main/cpp/texture.cc
            src/main/cpp/util.cc)
 
-add_library(poisson INTERFACE)
-set_target_properties(poisson PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${POISSON-INCLUDE})
+#add_library(poisson INTERFACE)
+#set_target_properties(poisson PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${POISSON-INCLUDE})
+target_include_directories(hello_ar_native PRIVATE ${POISSON-INCLUDE})
 
-# target_include_directories(hello_ar_native PRIVATE ${MOBILE3D-CORE-INCLUDE})
+#target_include_directories(hello_ar_native PUBLIC ${MOBILE3D-CORE-INCLUDE})
 add_library(mob-core INTERFACE)
 set_target_properties( mob-core PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${MOBILE3D-CORE-INCLUDE})
 
@@ -65,5 +66,4 @@ target_link_libraries(hello_ar_native
                       glm
                       arcore
                       lib_opencv
-                      poisson
                       mob-core)

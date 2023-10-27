@@ -50,7 +50,7 @@ int main()
         }
         std::string imgpath = projectfolder + "/images/" + name + ".jpg";
         cv::Mat image = cv::imread(imgpath);
-        views.emplace_back(image, intrinsics, extrinsics, keyPointIds);
+        views.emplace_back(image, intrinsics, extrinsics);
     }
 
     Scene gm(0.01);

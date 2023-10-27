@@ -36,6 +36,8 @@
 #include "texture.h"
 #include "util.h"
 
+#include <Reconstruct.h>
+
 namespace hello_ar {
 
 // HelloArApplication handles all application logics.
@@ -91,6 +93,9 @@ class HelloArApplication {
 
   PointCloudRenderer point_cloud_renderer_;
   BackgroundRenderer background_renderer_;
+
+  Scene collectedScene;
+  Reconstruct sceneReconstructor;
 
   void ConfigureSession();
 };

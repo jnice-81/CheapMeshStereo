@@ -11,7 +11,7 @@
 //#include "PyramidalBM.h"
 #include "View.h"
 #include "Scene.h"
-#include "PoissonSurfaceReconstruct.h"
+//#include "PoissonSurfaceReconstruct.h"
 
 
 class Reconstruct {
