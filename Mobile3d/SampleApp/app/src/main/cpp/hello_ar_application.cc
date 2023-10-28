@@ -32,7 +32,7 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.01), sceneReconstructor(collectedScene) {}
+    : asset_manager_(asset_manager), collectedScene(0.05), sceneReconstructor(collectedScene) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -46,6 +46,7 @@ void HelloArApplication::OnPause() {
   if (ar_session_ != nullptr) {
     ArSession_pause(ar_session_);
   }
+    collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
 }
 
 void HelloArApplication::OnResume(JNIEnv* env, void* context, void* activity) {
@@ -174,28 +175,11 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     return;
   }
 
-  /*
-  cv::Mat extrinsics = glm4x4ToCvMat(view_mat);
-  cv::Mat R = extrinsics(cv::Rect(0, 0, 3, 3));
-  cv::Mat T = extrinsics(cv::Rect(3, 0, 1, 3));
-  R = R.t();
-  T = - R * T;
-  cv::Mat_<double> P = cv::Mat_<double>::zeros(3, 3);
-  P.at<double>(0, 1) = 1;
-  P.at<double>(1, 0) = -1;
-  P.at<double>(2, 2) = 1;
-  R = (P * R).t();
-  T = - R * T;
-  extrinsics(cv::Rect(0, 0, 3, 3)) = R;
-  extrinsics(cv::Rect(3, 0, 1, 3)) = T;
 
-  cv::Mat extrinsics = glm4x4ToCvMat(cam_pose);
-  extrinsics.inv();
-  */
-  View current(cv::Mat(),glm4x4ToCvMat(projection_mat), glm4x4ToCvMat(view_mat));
-  sceneReconstructor.OpenGL2OpenCVView(current, cv::Size(1080, 1920));
+  //View current(cv::Mat(),glm4x4ToCvMat(projection_mat), glm4x4ToCvMat(view_mat));
+  cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
 
-  if (sceneReconstructor.shouldAddImage(current, 0.05)) {
+  if (sceneReconstructor.shouldAddImage(extrinsics, 0.2)) {
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
 
       // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
@@ -222,15 +206,15 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
       cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
       cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
-      //cv::resize()
-      //LOGI("%d %d", image.size().width, image.size().height);
+      cv::resize(image, image, cv::Size(), 0.5, 0.5);
 
+      cv::Mat intrinsics = View::oglIntrinsicsToCVIntrinsics(glm4x4ToCvMat(projection_mat), image.size());
+      View current(image, intrinsics, extrinsics);
 
       //cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/out.jpg", image);
-      
-      current.image = image;
 
       sceneReconstructor.add_image(current);
+      sceneReconstructor.update3d();
       if (oldimages.size() > 2) {   // Because opencv will not automatically deal with external data we need to clean up ourselfs
           GLubyte* old = oldimages.front();
           delete[] old;

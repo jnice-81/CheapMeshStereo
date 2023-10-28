@@ -19,8 +19,6 @@ public:
 class RenderHelper {
 public:
 	RenderHelper(View& v) {
-		cv::Size imgsize = v.image.size();
-
 		cv::Matx44d extrinsics;
 		cv::Matx44d intrinsics;
 		v.extrinsics.convertTo(extrinsics, CV_64F);
