@@ -96,6 +96,7 @@ class HelloArApplication {
 
   Scene collectedScene;
   Reconstruct sceneReconstructor;
+  std::list<GLubyte*> oldimages;
 
   void ConfigureSession();
 };

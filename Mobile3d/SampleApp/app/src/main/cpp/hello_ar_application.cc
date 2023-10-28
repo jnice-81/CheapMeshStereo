@@ -23,8 +23,10 @@
 #include "arcore_c_api.h"
 #include "plane_renderer.h"
 #include "util.h"
+#include <GLES3/gl31.h>
 
 #include <android/log.h>
+
 //#include "PoissonSurfaceReconstruct.h"
 
 namespace hello_ar {
@@ -150,6 +152,12 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 
   glm::mat4 view_mat;
   glm::mat4 projection_mat;
+  glm::mat4 cam_pose;
+  ArPose *tmppose;
+  ArPose_create(ar_session_, nullptr, &tmppose);
+  ArCamera_getPose(ar_session_, ar_camera, tmppose);
+  ArPose_getMatrix(ar_session_, tmppose, glm::value_ptr(cam_pose));
+  ArPose_destroy(tmppose);
   ArCamera_getViewMatrix(ar_session_, ar_camera, glm::value_ptr(view_mat));
   ArCamera_getProjectionMatrix(ar_session_, ar_camera,
                                /*near=*/0.1f, /*far=*/100.f,
@@ -166,16 +174,69 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     return;
   }
 
+  /*
+  cv::Mat extrinsics = glm4x4ToCvMat(view_mat);
+  cv::Mat R = extrinsics(cv::Rect(0, 0, 3, 3));
+  cv::Mat T = extrinsics(cv::Rect(3, 0, 1, 3));
+  R = R.t();
+  T = - R * T;
+  cv::Mat_<double> P = cv::Mat_<double>::zeros(3, 3);
+  P.at<double>(0, 1) = 1;
+  P.at<double>(1, 0) = -1;
+  P.at<double>(2, 2) = 1;
+  R = (P * R).t();
+  T = - R * T;
+  extrinsics(cv::Rect(0, 0, 3, 3)) = R;
+  extrinsics(cv::Rect(3, 0, 1, 3)) = T;
 
-  View current(cv::Mat(), glm4x4ToCvMat(projection_mat), glm4x4ToCvMat(view_mat));
-  sceneReconstructor.OpenGL2OpenCVView(current);
-  if (sceneReconstructor.shouldAddImage(current, 0.2)) {
+  cv::Mat extrinsics = glm4x4ToCvMat(cam_pose);
+  extrinsics.inv();
+  */
+  View current(cv::Mat(),glm4x4ToCvMat(projection_mat), glm4x4ToCvMat(view_mat));
+  sceneReconstructor.OpenGL2OpenCVView(current, cv::Size(1080, 1920));
+
+  if (sceneReconstructor.shouldAddImage(current, 0.05)) {
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
-      ArImage *img = nullptr;
-      ArFrame_acquireCameraImage(ar_session_, ar_frame_, &img);
-      //current.image =
+
+      // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
+      const GLuint texId = background_renderer_.GetTextureId();
+      glBindTexture(GL_TEXTURE_EXTERNAL_OES, texId);
+      int lwidth, lheight;
+      glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_WIDTH, &lwidth);
+      glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_HEIGHT, &lheight);
+
+      GLubyte* pixels = new GLubyte[lwidth * lheight * 4]; // 4 channels (RGBA)
+
+      GLuint fbo;
+      glGenFramebuffers(1, &fbo);
+      glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_EXTERNAL_OES, texId, 0);
+
+      glReadPixels(0, 0, lwidth, lheight, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      glDeleteFramebuffers(1, &fbo);
+      util::CheckGlError("Something went wrong when copying the image to CPU");
+
+      oldimages.push_back(pixels);
+      cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
+      cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
+      cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
+      //cv::resize()
+      //LOGI("%d %d", image.size().width, image.size().height);
+
+
+      //cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/out.jpg", image);
+      
+      current.image = image;
+
       sceneReconstructor.add_image(current);
-      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding");
+      if (oldimages.size() > 2) {   // Because opencv will not automatically deal with external data we need to clean up ourselfs
+          GLubyte* old = oldimages.front();
+          delete[] old;
+          oldimages.pop_front();
+      }
+      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding %d", collectedScene.getScenePoints().size());
   }
 
   // Update and render point cloud.

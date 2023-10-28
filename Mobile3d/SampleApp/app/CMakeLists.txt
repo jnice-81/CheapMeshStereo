@@ -62,7 +62,7 @@ target_include_directories(hello_ar_native PRIVATE
 target_link_libraries(hello_ar_native
                       android
                       log
-                      GLESv2
+                      GLESv3
                       glm
                       arcore
                       lib_opencv

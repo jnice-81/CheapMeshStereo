@@ -18,14 +18,14 @@ class Reconstruct {
 public:
 	Reconstruct(Scene& s) : scene(s) {}
 
-	static void OpenGL2OpenCVView(View& v) {
+	static void OpenGL2OpenCVView(View& v, cv::Size imgsize) {
 		cv::Mat_<double> ogl_to_cv = cv::Mat_<double>(4, 4);
 		ogl_to_cv <<
 			1, 1, 1, 1,
 			-1, -1, -1, -1,
 			-1, -1, -1, -1,
 			0, 0, 0, 1;
-		cv::Size imgsize = v.image.size();
+		//cv::Size imgsize = v.image.size();
 
 		v.extrinsics = v.extrinsics.mul(ogl_to_cv);
 		cv::Mat_<double> cvintrinsics = cv::Mat_<double>(3, 3);
@@ -92,6 +92,8 @@ private:
 		cv::imshow("v2", rectified_image2);
 		cv::waitKey(0);
 		*/
+		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v1.jpg", v1.image);
+		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v2.jpg", v2.image);
 
 		int ndisp = 30 * 16;
 		int mindisp = -(ndisp / 2);
