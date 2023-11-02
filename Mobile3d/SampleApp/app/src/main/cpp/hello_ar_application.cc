@@ -85,8 +85,10 @@ void HelloArApplication::OnResume(JNIEnv* env, void* context, void* activity) {
     ConfigureSession();
     ArFrame_create(ar_session_, &ar_frame_);
 
-    ArSession_setDisplayGeometry(ar_session_, display_rotation_, width_,
-                                 height_);
+    LOGI("HEROPHJFDKSJKSLKJ");
+    ArSession_setDisplayGeometry(ar_session_, 0, 720,
+                                 1280);
+    LOGI("HEROPHJFDKSJKSLKJ");
   }
 
   const ArStatus status = ArSession_resume(ar_session_);
@@ -102,13 +104,13 @@ void HelloArApplication::OnSurfaceCreated() {
 
 void HelloArApplication::OnDisplayGeometryChanged(int display_rotation,
                                                   int width, int height) {
-  LOGI("OnSurfaceChanged(%d, %d)", width, height);
+  LOGI("OnSurfaceChanged(%d, %d, %d)", width, height, display_rotation);
   glViewport(0, 0, width, height);
   display_rotation_ = display_rotation;
   width_ = width;
   height_ = height;
   if (ar_session_ != nullptr) {
-    ArSession_setDisplayGeometry(ar_session_, display_rotation, width, height);
+    //ArSession_setDisplayGeometry(ar_session_, display_rotation, width, height);
   }
 }
 
@@ -193,9 +195,15 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
   extrinsics.inv();
   */
   View current(cv::Mat(),glm4x4ToCvMat(projection_mat), glm4x4ToCvMat(view_mat));
-  sceneReconstructor.OpenGL2OpenCVView(current, cv::Size(1080, 1920));
+  sceneReconstructor.OpenGL2OpenCVView(current, cv::Size(720, 1280));
 
-  if (sceneReconstructor.shouldAddImage(current, 0.05)) {
+std::string s;
+s << current.extrinsics;
+std::string g;
+g << current.intrinsics;
+LOGI("%s %s", s.c_str(), g.c_str());
+
+  if (sceneReconstructor.shouldAddImage(current, 0.2)) {
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
 
       // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
@@ -222,7 +230,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
       cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
       cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
-      //cv::resize()
+      cv::resize(image, image, cv::Size(720, 1280));
       //LOGI("%d %d", image.size().width, image.size().height);
 
 

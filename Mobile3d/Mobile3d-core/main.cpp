@@ -57,15 +57,15 @@ int main()
     Reconstruct g(gm);
 
     //for (int i = views.size()-1; i >= views.size()-2; i--) {
-    /*
     for (int i = 0; i < views.size(); i++) {
-        g.OpenGL2OpenCVView(views[i]);
+        g.OpenGL2OpenCVView(views[i], views[i].image.size());
+        std::cout << views[i].extrinsics << " " << views[i].intrinsics;
         g.add_image(views[i]);
-    }*/
+    }
 
     gm.import_xyz("h.xyz");
     gm.filterOutliers(10, 200);
-    PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(gm, "exp.ply", 10); 
+    //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(gm, "exp.ply", 10); 
     
 
     //gm.export_xyz("h.xyz");

@@ -92,8 +92,8 @@ private:
 		cv::imshow("v2", rectified_image2);
 		cv::waitKey(0);
 		*/
-		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v1.jpg", v1.image);
-		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v2.jpg", v2.image);
+		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v1.jpg", rectified_image1);
+		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v2.jpg", rectified_image2);
 
 		int ndisp = 30 * 16;
 		int mindisp = -(ndisp / 2);
