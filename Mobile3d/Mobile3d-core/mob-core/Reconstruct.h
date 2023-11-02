@@ -18,25 +18,7 @@ class Reconstruct {
 public:
 	Reconstruct(Scene& s) : scene(s) {}
 
-	static void OpenGL2OpenCVView(View& v, cv::Size imgsize) {
-		cv::Mat_<double> ogl_to_cv = cv::Mat_<double>(4, 4);
-		ogl_to_cv <<
-			1, 1, 1, 1,
-			-1, -1, -1, -1,
-			-1, -1, -1, -1,
-			0, 0, 0, 1;
-		//cv::Size imgsize = v.image.size();
-
-		v.extrinsics = v.extrinsics.mul(ogl_to_cv);
-		cv::Mat_<double> cvintrinsics = cv::Mat_<double>(3, 3);
-		cvintrinsics <<
-			v.intrinsics.at<double>(0, 0) * 0.5 * imgsize.width, 0, v.intrinsics.at<double>(0, 2) + imgsize.width * 0.5,
-			0, v.intrinsics.at<double>(1, 1) * 0.5 * imgsize.height, v.intrinsics.at<double>(1, 2) + imgsize.height * 0.5,
-			0, 0, 1;
-		v.intrinsics = cvintrinsics;
-	}
-
-	bool shouldAddImage(View newView, float minNorm) {
+	bool shouldAddImage(const cv::Mat &newExtrinsics, float minNorm) {
 		const cv::Rect roiR = cv::Rect(0, 0, 3, 3);
 		const cv::Rect roiT = cv::Rect(3, 0, 1, 3);
 
@@ -45,8 +27,8 @@ public:
 		}
 
 		View oldView = sliding_window.back();
-		cv::Mat R = newView.extrinsics(roiR) * oldView.extrinsics(roiR).t();
-		cv::Mat T = newView.extrinsics(roiT) - R * oldView.extrinsics(roiT);
+		cv::Mat R = newExtrinsics(roiR) * oldView.extrinsics(roiR).t();
+		cv::Mat T = newExtrinsics(roiT) - R * oldView.extrinsics(roiT);
 
 		return cv::norm(T) >= minNorm;
 	}
@@ -54,14 +36,16 @@ public:
 	void add_image(View new_view) {
 		sliding_window.push_back(new_view);
 
-		if (sliding_window.size() >= 2) {
-			update3d();
+		if (sliding_window.size() > 2) {
 			sliding_window.pop_front();
 		}
 	}
 
-private:
 	void update3d() {
+        if (sliding_window.size() < 2) {
+            return;
+        }
+
 		View v1 = sliding_window.front();
 		View v2 = sliding_window.back();
 
@@ -113,6 +97,7 @@ private:
 		csc.printAndReset("Add3d");
 	}
 
+private:
 	inline int virtualToRealNormalBufferIdx(int i, int currentWriteLine, int bufferLines) {
 		return (currentWriteLine + i) % bufferLines;
 	}
