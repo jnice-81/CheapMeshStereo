@@ -25,8 +25,8 @@ class dense_point_renderer {
     };
 
     struct InstanceData {
-        glm::vec3 position;
-        glm::vec3 normal;
+        cv::Vec3f position;
+        cv::Vec3f normal;
     };
 
     /*
@@ -48,17 +48,17 @@ class dense_point_renderer {
 
     const char* vertexShaderSource = R"(#version 300 es
 
-        in vec3 aPos;
+        layout(location = 0) in vec3 aPos;
+        layout(location = 1) in vec3 aInstancePos;
+        layout(location = 2) in vec3 aInstanceNormal;
 
         uniform mat4 projectionview;
-        uniform vec3 position;
-        uniform vec3 normal;
 
         void main() {
             // Approach copied from https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
 
             vec3 norotn = vec3(0.0, 0.0, 1.0);
-            vec3 n = normalize(normal);
+            vec3 n = normalize(aInstanceNormal);
             vec3 t = norotn + n;
             float s = dot(t, t);
 
@@ -70,7 +70,7 @@ class dense_point_renderer {
                 R = (2.0 * mat3(t * t.x, t * t.y, t * t.z) / s) - mat3(1.0);
             }
 
-            vec4 modelPos = vec4(R * (0.005 * aPos) + position, 1.0);
+            vec4 modelPos = vec4(R * (0.005 * aPos) + aInstancePos, 1.0);
             gl_Position = projectionview * modelPos;
         }
     )";
@@ -90,7 +90,7 @@ class dense_point_renderer {
 
     GLuint linkProgram(GLuint vertexShader, GLuint fragmentShader);
 
-    GLuint VBO, VAO, EBO;
+    GLuint VBO, VAO, EBO, InstanceBuffer;
     GLuint shaderProgram;
     GLuint mvp_uniform, normal_uniform, position_uniform;
 
