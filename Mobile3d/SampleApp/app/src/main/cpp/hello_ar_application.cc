@@ -32,7 +32,7 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.05), sceneReconstructor(collectedScene) {}
+    : asset_manager_(asset_manager), collectedScene(0.1), sceneReconstructor(collectedScene) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -46,7 +46,8 @@ void HelloArApplication::OnPause() {
   if (ar_session_ != nullptr) {
     ArSession_pause(ar_session_);
   }
-    collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
+    //collectedScene.filterOutliers(10, 200);
+    //collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
 }
 
 void HelloArApplication::OnResume(JNIEnv* env, void* context, void* activity) {
@@ -86,10 +87,8 @@ void HelloArApplication::OnResume(JNIEnv* env, void* context, void* activity) {
     ConfigureSession();
     ArFrame_create(ar_session_, &ar_frame_);
 
-    LOGI("HEROPHJFDKSJKSLKJ");
     ArSession_setDisplayGeometry(ar_session_, 0, 720,
                                  1280);
-    LOGI("HEROPHJFDKSJKSLKJ");
   }
 
   const ArStatus status = ArSession_resume(ar_session_);
@@ -101,6 +100,7 @@ void HelloArApplication::OnSurfaceCreated() {
 
   background_renderer_.InitializeGlContent(asset_manager_);
   point_cloud_renderer_.InitializeGlContent(asset_manager_);
+  densePointRenderer_.InitializeGLContent();
 }
 
 void HelloArApplication::OnDisplayGeometryChanged(int display_rotation,
@@ -122,11 +122,17 @@ inline cv::Mat glm4x4ToCvMat(glm::mat4 a) {
             b.at<double>(j, i) = a[i][j];
         }
     }
-    /*
-    std::string s;
-    s << b;
-    __android_log_print(ANDROID_LOG_VERBOSE, "mobcore", "%s", s.c_str());
-     */
+
+    return b;
+}
+
+inline glm::mat4 CvMatToGlm4x4(cv::Mat a) {
+    glm::mat4 b;
+    for(int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            b[i][j] = a.at<double>(j, i);
+        }
+    }
 
     return b;
 }
@@ -155,12 +161,6 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 
   glm::mat4 view_mat;
   glm::mat4 projection_mat;
-  glm::mat4 cam_pose;
-  ArPose *tmppose;
-  ArPose_create(ar_session_, nullptr, &tmppose);
-  ArCamera_getPose(ar_session_, ar_camera, tmppose);
-  ArPose_getMatrix(ar_session_, tmppose, glm::value_ptr(cam_pose));
-  ArPose_destroy(tmppose);
   ArCamera_getViewMatrix(ar_session_, ar_camera, glm::value_ptr(view_mat));
   ArCamera_getProjectionMatrix(ar_session_, ar_camera,
                                /*near=*/0.1f, /*far=*/100.f,
@@ -177,12 +177,9 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     return;
   }
 
-
-  //sceneReconstructor.OpenGL2OpenCVView(current, cv::Size(720, 1280));
-
   cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
 
-  if (sceneReconstructor.shouldAddImage(extrinsics, 0.2)) {
+  if (sceneReconstructor.shouldAddImage(extrinsics, 0.1)) {
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
 
       // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
@@ -209,16 +206,21 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
       cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
       cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
+
       cv::resize(image, image, cv::Size(720, 1280));
-      //LOGI("%d %d", image.size().width, image.size().height);
 
       cv::Mat intrinsics = View::oglIntrinsicsToCVIntrinsics(glm4x4ToCvMat(projection_mat), image.size());
       View current(image, intrinsics, extrinsics);
 
-      //cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/out.jpg", image);
-
       sceneReconstructor.add_image(current);
       sceneReconstructor.update3d();
+
+        /*
+      if (oldimages.size() >= 2) {
+          cv::Mat rend = collectedScene.directRender(current);
+          cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/out.bmp", rend * 255);
+      }*/
+
       if (oldimages.size() > 2) {   // Because opencv will not automatically deal with external data we need to clean up ourselfs
           GLubyte* old = oldimages.front();
           delete[] old;
@@ -227,13 +229,14 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding %d", collectedScene.getScenePoints().size());
   }
 
+    densePointRenderer_.draw(collectedScene, projection_mat * view_mat);
+
   // Update and render point cloud.
   ArPointCloud* ar_point_cloud = nullptr;
   ArStatus point_cloud_status =
       ArFrame_acquirePointCloud(ar_session_, ar_frame_, &ar_point_cloud);
   if (point_cloud_status == AR_SUCCESS) {
-    point_cloud_renderer_.Draw(projection_mat * view_mat, ar_session_,
-                               ar_point_cloud);
+    point_cloud_renderer_.Draw(projection_mat * view_mat, ar_session_, ar_point_cloud);
     ArPointCloud_release(ar_point_cloud);
   }
 }
@@ -245,6 +248,8 @@ void HelloArApplication::ConfigureSession() {
   ArConfig_setDepthMode(ar_session_, ar_config, AR_DEPTH_MODE_DISABLED);
   ArConfig_setInstantPlacementMode(ar_session_, ar_config,
                                    AR_INSTANT_PLACEMENT_MODE_DISABLED);
+  ArConfig_setPlaneFindingMode(ar_session_, ar_config,
+                             AR_PLANE_FINDING_MODE_DISABLED);
 
   CHECK(ar_config);
   CHECK(ArSession_configure(ar_session_, ar_config) == AR_SUCCESS);

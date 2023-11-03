@@ -46,6 +46,7 @@ add_library(hello_ar_native SHARED
            src/main/cpp/obj_renderer.cc
            src/main/cpp/plane_renderer.cc
            src/main/cpp/point_cloud_renderer.cc
+           src/main/cpp/dense_point_renderer.cc
            src/main/cpp/texture.cc
            src/main/cpp/util.cc)
 

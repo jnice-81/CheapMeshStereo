@@ -1,4 +1,6 @@
 
+#pragma once
+
 #ifdef DEBUG
 void overlay(cv::Mat depth, cv::Mat img, float imgAlpha = 0.1) {
 	cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);

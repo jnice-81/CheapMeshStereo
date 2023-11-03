@@ -1,3 +1,5 @@
+#pragma once
+
 class View {
 public:
     View(cv::Mat image, cv::Mat intrinsics, cv::Mat extrinsics)

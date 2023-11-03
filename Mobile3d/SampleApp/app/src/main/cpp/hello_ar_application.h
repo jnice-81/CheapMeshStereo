@@ -33,10 +33,12 @@
 #include "obj_renderer.h"
 #include "plane_renderer.h"
 #include "point_cloud_renderer.h"
+#include "dense_point_renderer.h"
 #include "texture.h"
 #include "util.h"
 
 #include <Reconstruct.h>
+#include <dense_point_renderer.h>
 
 namespace hello_ar {
 
@@ -93,6 +95,7 @@ class HelloArApplication {
 
   PointCloudRenderer point_cloud_renderer_;
   BackgroundRenderer background_renderer_;
+  dense_point_renderer densePointRenderer_;
 
   Scene collectedScene;
   Reconstruct sceneReconstructor;

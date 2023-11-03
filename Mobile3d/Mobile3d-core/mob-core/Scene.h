@@ -1,3 +1,10 @@
+#pragma once
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <fstream>
+#include "helpers.h"
+#include "View.h"
 
 // Correct?
 class VecHash {
@@ -58,6 +65,11 @@ public:
 		const float center = (float)voxelSideLength * 0.5f;
 		const cv::Vec3f toCenter(center, center, center);
 		return voxel + toCenter;
+	}
+
+	inline cv::Vec3f voxelToPoint(const cv::Vec3i voxelIdx) const {
+		cv::Vec3f p = voxelIdx;
+		return addVoxelCenter(p * voxelSideLength);
 	}
 
 	inline cv::Vec3f getCenterOfVoxel(const cv::Vec3f point) const {
@@ -147,7 +159,7 @@ public:
 		return voxelSideLength;
 	}
 
-	inline std::unordered_map<cv::Vec3i, ScenePoint, VecHash>& getScenePoints() {
+	inline std::unordered_map<cv::Vec3i, ScenePoint, VecHash>& getScenePoints(){
 		return surfacePoints;
 	}
 
@@ -166,8 +178,7 @@ public:
 		auto endSurface = surfacePoints.end();
 
 		for (auto it = surfacePoints.begin(); it != endSurface; it++) {
-			cv::Vec3f p = it->first;
-			p = addVoxelCenter(p * voxelSideLength);
+			cv::Vec3f p = voxelToPoint(it->first);
 			cv::Vec3f project = rhelper.projectPoint(p);
 			cv::Vec3i pdash = floatToIntVec<int, float, 3>(project);
 			if (pdash[0] >= 0 && pdash[1] >= 0 && project[2] > 0 && pdash[0] < imgsize.width && pdash[1] < imgsize.height) {
