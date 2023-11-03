@@ -178,8 +178,15 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
   }
 
   cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
+  std::future_status reconstruction_status;
+  if (reconstructionFuture.valid()) {
+      reconstruction_status = reconstructionFuture.wait_for(std::chrono::milliseconds(0));
+  }
+  else {
+      reconstruction_status = std::future_status::ready;
+  }
 
-  if (sceneReconstructor.shouldAddImage(extrinsics, 0.1)) {
+  if (sceneReconstructor.shouldAddImage(extrinsics, 0.1) && reconstruction_status == std::future_status::ready) {
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
 
       // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
@@ -213,7 +220,10 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       View current(image, intrinsics, extrinsics);
 
       sceneReconstructor.add_image(current);
-      sceneReconstructor.update3d();
+      
+      reconstructionFuture = std::async(std::launch::async, [this] {
+          sceneReconstructor.update3d();
+      });
 
         /*
       if (oldimages.size() >= 2) {
@@ -229,7 +239,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding %d", collectedScene.getScenePoints().size());
   }
 
-    densePointRenderer_.draw(collectedScene, projection_mat * view_mat, true);
+    densePointRenderer_.draw(collectedScene, projection_mat * view_mat, reconstruction_status == std::future_status::ready);
 
   // Update and render point cloud.
   ArPointCloud* ar_point_cloud = nullptr;

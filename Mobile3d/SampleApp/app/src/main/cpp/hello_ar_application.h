@@ -26,6 +26,8 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <thread>
+#include <future>
 
 #include "arcore_c_api.h"
 #include "background_renderer.h"
@@ -100,6 +102,7 @@ class HelloArApplication {
   Scene collectedScene;
   Reconstruct sceneReconstructor;
   std::list<GLubyte*> oldimages;
+  std::future<void> reconstructionFuture;
 
   void ConfigureSession();
 };
