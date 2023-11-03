@@ -78,10 +78,6 @@ public class HelloArActivity extends AppCompatActivity
       Log.e(TAG, "Exception creating session", e);
       return;
     }
-
-    // Listen to display changed events to detect 180° rotation, which does not cause a config
-    // change or view resize.
-    getSystemService(DisplayManager.class).registerDisplayListener(this, null);
   }
 
   @Override

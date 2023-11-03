@@ -66,9 +66,11 @@ int main()
 
     //cv::imshow("asdjh", gm.directRender(views[5]));
     //cv::waitKey(0);
-    gm.filterConfidence(10);
-    gm.filterOutliers(2, 10);
-    gm.filterOutliers(2, 10);
+    
+
+    //gm.filterConfidence(10);
+    //gm.filterOutliers(2, 10);
+    //gm.filterOutliers(2, 10);
     gm.export_xyz("h.xyz");
 
     //gm.import_xyz("h.xyz");

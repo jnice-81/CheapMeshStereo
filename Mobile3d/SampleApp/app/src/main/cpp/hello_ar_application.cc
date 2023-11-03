@@ -32,7 +32,7 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.01), sceneReconstructor(collectedScene) {}
+    : asset_manager_(asset_manager), collectedScene(0.03), sceneReconstructor(collectedScene) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -46,8 +46,10 @@ void HelloArApplication::OnPause() {
   if (ar_session_ != nullptr) {
     ArSession_pause(ar_session_);
   }
-    //collectedScene.filterOutliers(10, 200);
-    //collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
+    collectedScene.filterConfidence(25);
+    collectedScene.filterOutliers(2, 10);
+    collectedScene.filterOutliers(2, 10);
+    collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
 }
 
 void HelloArApplication::OnResume(JNIEnv* env, void* context, void* activity) {
@@ -110,9 +112,6 @@ void HelloArApplication::OnDisplayGeometryChanged(int display_rotation,
   display_rotation_ = display_rotation;
   width_ = width;
   height_ = height;
-  if (ar_session_ != nullptr) {
-    //ArSession_setDisplayGeometry(ar_session_, display_rotation, width, height);
-  }
 }
 
 inline cv::Mat glm4x4ToCvMat(glm::mat4 a) {

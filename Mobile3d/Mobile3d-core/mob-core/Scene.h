@@ -93,11 +93,11 @@ public:
 
 	int filterConfidence(const float minConfidence) {
 		auto end = surfacePoints.end();
-		std::vector<std::_List_iterator<std::_List_val<std::_List_simple_types<std::pair<const cv::Vec3i, ScenePoint>>>>> toRemove;
+		std::vector<cv::Vec3i> toRemove;
 
 		for (auto it = surfacePoints.begin(); it != end; it++) {
 			if (it->second.confidence <= minConfidence) {
-				toRemove.push_back(it);
+				toRemove.push_back(it->first);
 			}
 		}
 
