@@ -53,18 +53,24 @@ int main()
         views.emplace_back(image, intrinsics, extrinsics);
     }
 
-    Scene gm(0.01);
+    Scene gm(0.03);
     Reconstruct g(gm);
 
     //for (int i = views.size()-1; i >= views.size()-2; i--) {
     for (int i = 0; i < views.size(); i++) {
-        g.OpenGL2OpenCVView(views[i], views[i].image.size());
+        views[i].extrinsics = View::oglExtrinsicsToCVExtrinsics(views[i].extrinsics);
+        views[i].intrinsics = View::oglIntrinsicsToCVIntrinsics(views[i].intrinsics, views[i].image.size());
         std::cout << views[i].extrinsics << " " << views[i].intrinsics;
         g.add_image(views[i]);
+        g.update3d();
     }
 
-    gm.import_xyz("h.xyz");
-    gm.filterOutliers(10, 200);
+    //cv::imshow("asdjh", gm.directRender(views[5]));
+    //cv::waitKey(0);
+    gm.export_xyz("h.xyz");
+
+    //gm.import_xyz("h.xyz");
+    //gm.filterOutliers(10, 200);
     //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(gm, "exp.ply", 10); 
     
 
