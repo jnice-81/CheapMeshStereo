@@ -57,64 +57,74 @@ void dense_point_renderer::InitializeGLContent() {
 
     mvp_uniform = glGetUniformLocation(shaderProgram, "projectionview");
 
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(squareVertices), squareVertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(squareIndices), squareIndices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
     hello_ar::util::CheckGlError("Something went wrong during initialization of dense point renderer");
 }
 
-void dense_point_renderer::draw(Scene &scene, const glm::mat4& mvp_matrix) {
+void dense_point_renderer::draw(Scene &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints) {
     CHECK(shaderProgram);
 
-    glDisable(GL_CULL_FACE);
     glUseProgram(shaderProgram);
-    hello_ar::util::CheckGlError("UPS");
 
     glBindVertexArray(VAO);
 
-    hello_ar::util::CheckGlError("fdf");
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    hello_ar::util::CheckGlError("asdflkujl");
-    glBufferData(GL_ARRAY_BUFFER, sizeof(squareVertices), squareVertices, GL_STATIC_DRAW);
-    hello_ar::util::CheckGlError("Rezo");
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(squareIndices), squareIndices, GL_STATIC_DRAW);
 
-    hello_ar::util::CheckGlError("Uhu");
+    if (canUpdatePoints) {
+        auto points = scene.getScenePoints();
+        if (points.size() != lastSize) {
+            if (data != nullptr) {
+                delete[] data;
+            }
 
-    auto points = scene.getScenePoints();
-    if (points.size() > 0) {
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-        glEnableVertexAttribArray(0);
+            data = new InstanceData[points.size()];
+            int instanceId = 0;
+            for (auto m : points) {
+                data[instanceId].position = scene.voxelToPoint(m.first);
+                data[instanceId].normal = m.second.normal;
+                instanceId++;
+            }
 
-        InstanceData *load = new InstanceData[points.size()];
-        int instanceId = 0;
-        for (auto m : points) {
-            load[instanceId].position = scene.voxelToPoint(m.first);
-            load[instanceId].normal = m.second.normal;
-            instanceId++;
+            glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(InstanceData) * points.size(), data, GL_STATIC_DRAW);
+
+            lastSize = points.size();
         }
-
-        glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(InstanceData) * points.size(), load, GL_STATIC_DRAW);
-
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (GLvoid*)offsetof(InstanceData, position));
-        glEnableVertexAttribArray(1);
-        glVertexAttribDivisor(1, 1);
-
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (GLvoid*)offsetof(InstanceData, normal));
-        glEnableVertexAttribArray(2);
-        glVertexAttribDivisor(2, 1);
-
-        glUniformMatrix4fv(mvp_uniform, 1, GL_FALSE, glm::value_ptr(mvp_matrix));
-
-        glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, points.size());
-
-        delete[] load;
     }
+
+    glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (GLvoid*)offsetof(InstanceData, position));
+    glEnableVertexAttribArray(1);
+    glVertexAttribDivisor(1, 1);
+
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (GLvoid*)offsetof(InstanceData, normal));
+    glEnableVertexAttribArray(2);
+    glVertexAttribDivisor(2, 1);
+
+    glUniformMatrix4fv(mvp_uniform, 1, GL_FALSE, glm::value_ptr(mvp_matrix));
+
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, lastSize);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-    glEnable(GL_CULL_FACE);
 
-    hello_ar::util::CheckGlError("UPS");
+    hello_ar::util::CheckGlError("Error when drawing dense points");
+}
+
+dense_point_renderer::~dense_point_renderer() {
+    if (data != nullptr) {
+        delete[] data;
+    }
 }

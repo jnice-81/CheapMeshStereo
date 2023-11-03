@@ -82,7 +82,7 @@ class dense_point_renderer {
         out vec4 FragColor;
 
         void main() {
-            FragColor = vec4(0, 1.0, 0, 0.3);
+            FragColor = vec4(0.2, 0.2, 0.2, 1);
         }
     )";
 
@@ -94,10 +94,15 @@ class dense_point_renderer {
     GLuint shaderProgram;
     GLuint mvp_uniform, normal_uniform, position_uniform;
 
+    InstanceData *data = nullptr;
+    unsigned int lastSize;
+
 public:
     void InitializeGLContent();
 
-    void draw(Scene &scene, const glm::mat4& mvp_matrix);
+    void draw(Scene &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints);
+
+    ~dense_point_renderer();
 };
 
 

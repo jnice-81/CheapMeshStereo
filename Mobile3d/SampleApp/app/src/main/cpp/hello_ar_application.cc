@@ -229,7 +229,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding %d", collectedScene.getScenePoints().size());
   }
 
-    densePointRenderer_.draw(collectedScene, projection_mat * view_mat);
+    densePointRenderer_.draw(collectedScene, projection_mat * view_mat, true);
 
   // Update and render point cloud.
   ArPointCloud* ar_point_cloud = nullptr;
