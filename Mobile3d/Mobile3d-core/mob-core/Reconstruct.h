@@ -75,10 +75,10 @@ public:
 		cv::imshow("v1", rectified_image1);
 		cv::imshow("v2", rectified_image2);
 		cv::waitKey(0);
-		*/
 
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v1.jpg", rectified_image1);
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v2.jpg", rectified_image2);
+		*/
 
 		int ndisp = 30 * 16;
 		int mindisp = -(ndisp / 2);
@@ -194,7 +194,7 @@ private:
 						n = n / cv::norm(n);
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
 
-						scene.addPoint(p, n);
+						scene.addPoint(p, n, 1.0);
 					}
 				}
 			}

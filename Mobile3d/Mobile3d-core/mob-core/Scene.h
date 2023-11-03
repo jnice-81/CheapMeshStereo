@@ -21,6 +21,7 @@ public:
 class ScenePoint {
 public:
 	cv::Vec3f normal;
+	float confidence;
 };
 
 class RenderHelper {
@@ -54,11 +55,20 @@ public:
 		this->voxelSideLength = voxelSideLength;
 	}
 
-	inline void addPoint(cv::Vec3f point, cv::Vec3f normal) {
+	inline void addPoint(cv::Vec3f point, cv::Vec3f normal, float confidence) {
 		cv::Vec3i q = floatToIntVec<int, float, 3>(point / voxelSideLength);
-		ScenePoint s;
-		s.normal = normal;
-		surfacePoints.insert(std::make_pair(q, s));
+		auto old = surfacePoints.find(q);
+		if(old == surfacePoints.end()) {
+			ScenePoint s;
+			s.normal = normal;
+			s.confidence = confidence;
+			surfacePoints.insert(std::make_pair(q, s));
+		}
+		else {
+			float oldconfidence = old->second.confidence;
+			old->second.confidence = oldconfidence + confidence;
+			old->second.normal = (oldconfidence * old->second.normal + confidence * normal) / old->second.confidence;
+		}
 	}
 
 	inline cv::Vec3f addVoxelCenter(const cv::Vec3f voxel) const {
@@ -79,6 +89,21 @@ public:
 
 	inline cv::Vec3f centerAndRenderBack(const RenderHelper& renderHelper, const cv::Vec3f point) const {
 		return renderHelper.projectPoint(getCenterOfVoxel(point));
+	}
+
+	int filterConfidence(const float minConfidence) {
+		auto end = surfacePoints.end();
+		std::vector<std::_List_iterator<std::_List_val<std::_List_simple_types<std::pair<const cv::Vec3i, ScenePoint>>>>> toRemove;
+
+		for (auto it = surfacePoints.begin(); it != end; it++) {
+			if (it->second.confidence <= minConfidence) {
+				toRemove.push_back(it);
+			}
+		}
+
+		for (auto g : toRemove) {
+			surfacePoints.erase(g);
+		}
 	}
 
 	int filterOutliers(const int l1radius, const int minhits) {
@@ -144,7 +169,7 @@ public:
 				n[local % 3] = current;
 			}
 			if (local == 5) {
-				addPoint(v, n);
+				addPoint(v, n, 1.0);
 			}
 
 			idx++;

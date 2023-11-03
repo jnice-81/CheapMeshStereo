@@ -60,13 +60,15 @@ int main()
     for (int i = 0; i < views.size(); i++) {
         views[i].extrinsics = View::oglExtrinsicsToCVExtrinsics(views[i].extrinsics);
         views[i].intrinsics = View::oglIntrinsicsToCVIntrinsics(views[i].intrinsics, views[i].image.size());
-        std::cout << views[i].extrinsics << " " << views[i].intrinsics;
         g.add_image(views[i]);
         g.update3d();
     }
 
     //cv::imshow("asdjh", gm.directRender(views[5]));
     //cv::waitKey(0);
+    gm.filterConfidence(10);
+    gm.filterOutliers(2, 10);
+    gm.filterOutliers(2, 10);
     gm.export_xyz("h.xyz");
 
     //gm.import_xyz("h.xyz");
