@@ -55,12 +55,22 @@ class dense_point_renderer {
         uniform vec3 normal;
 
         void main() {
-            vec3 norotn = vec3(0.0, 0.0, 1.0);
-            mat3 R = mat3(
-                normalize(normal), normalize(cross(norotn, normal)), normalize(norotn)
-            );
+            // Approach copied from https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
 
-            vec4 modelPos = vec4(R * (2.0 * 0.01 * aPos) + position, 1.0);
+            vec3 norotn = vec3(0.0, 0.0, 1.0);
+            vec3 n = normalize(normal);
+            vec3 t = norotn + n;
+            float s = dot(t, t);
+
+            mat3 R;
+            if (s < 0.001) {
+                R = mat3(-1.0);
+            }
+            else {
+                R = (2.0 * mat3(t * t.x, t * t.y, t * t.z) / s) - mat3(1.0);
+            }
+
+            vec4 modelPos = vec4(R * (0.005 * aPos) + position, 1.0);
             gl_Position = projectionview * modelPos;
         }
     )";

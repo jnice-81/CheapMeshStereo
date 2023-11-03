@@ -32,7 +32,7 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.1), sceneReconstructor(collectedScene) {}
+    : asset_manager_(asset_manager), collectedScene(0.01), sceneReconstructor(collectedScene) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
