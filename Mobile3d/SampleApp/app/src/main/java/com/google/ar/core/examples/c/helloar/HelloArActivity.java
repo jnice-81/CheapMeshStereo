@@ -57,6 +57,16 @@ public class HelloArActivity extends AppCompatActivity
     surfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
     surfaceView.setWillNotDraw(false);
 
+    ImageButton endScanBtn = findViewById(R.id.endScan);
+    endScanBtn.setOnClickListener(
+            new View.OnClickListener() {
+              @Override
+              public void onClick(View v) {
+                
+              }
+            }
+    );
+
     JniInterface.assetManager = getAssets();
     nativeApplication = JniInterface.createNativeApplication(getAssets());
   }

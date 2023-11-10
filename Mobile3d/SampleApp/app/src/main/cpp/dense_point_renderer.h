@@ -70,7 +70,7 @@ class dense_point_renderer {
                 R = (2.0 * mat3(t * t.x, t * t.y, t * t.z) / s) - mat3(1.0);
             }
 
-            vec4 modelPos = vec4(R * (0.005 * aPos) + aInstancePos, 1.0);
+            vec4 modelPos = vec4(R * (0.02 * aPos) + aInstancePos, 1.0);
             gl_Position = projectionview * modelPos;
         }
     )";

@@ -14,6 +14,7 @@
    limitations under the License.
 -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -23,16 +24,15 @@
       android:id="@+id/surfaceview"
       android:layout_width="match_parent"
       android:layout_height="match_parent"
-      android:layout_gravity="top"/>
+      android:layout_gravity="top" />
 
-  <ImageButton
-    android:id="@+id/settings_button"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_alignParentEnd="true"
-    android:layout_alignParentTop="true"
-    android:layout_margin="25dp"
-    android:src="@drawable/ic_settings"
-    android:background="@android:color/transparent"/>
+  <ImageView
+      android:id="@+id/endScan"
+      android:layout_width="106dp"
+      android:layout_height="116dp"
+      android:layout_alignBottom="@id/surfaceview"
+      android:layout_centerHorizontal="true"
+      app:srcCompat="@android:drawable/ic_media_play">
+  </ImageView>
 
 </RelativeLayout>
