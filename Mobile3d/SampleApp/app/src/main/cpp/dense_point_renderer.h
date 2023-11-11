@@ -54,6 +54,8 @@ class dense_point_renderer {
 
         uniform mat4 projectionview;
 
+        out vec4 color;
+
         void main() {
             // Approach copied from https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
 
@@ -72,6 +74,10 @@ class dense_point_renderer {
 
             vec4 modelPos = vec4(R * (0.02 * aPos) + aInstancePos, 1.0);
             gl_Position = projectionview * modelPos;
+
+            float c = abs(dot(norotn, n));
+            color = c * vec4(1.0, 0.0, 0.0, 1.0);
+
         }
     )";
 
@@ -81,8 +87,10 @@ class dense_point_renderer {
 
         out vec4 FragColor;
 
+        in vec4 color;
+
         void main() {
-            FragColor = vec4(0.2, 0.2, 0.2, 1);
+            FragColor = color;
         }
     )";
 

@@ -46,10 +46,6 @@ void HelloArApplication::OnPause() {
   if (ar_session_ != nullptr) {
     ArSession_pause(ar_session_);
   }
-    collectedScene.filterConfidence(25);
-    collectedScene.filterOutliers(2, 10);
-    collectedScene.filterOutliers(2, 10);
-    collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
 }
 
 void HelloArApplication::OnResume(JNIEnv* env, void* context, void* activity) {
