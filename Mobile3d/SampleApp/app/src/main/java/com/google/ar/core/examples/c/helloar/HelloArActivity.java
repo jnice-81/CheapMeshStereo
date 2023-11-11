@@ -62,7 +62,7 @@ public class HelloArActivity extends AppCompatActivity
             new View.OnClickListener() {
               @Override
               public void onClick(View v) {
-                
+                JniInterface.computeSurface(nativeApplication);
               }
             }
     );

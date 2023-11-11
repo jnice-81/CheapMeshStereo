@@ -26,13 +26,13 @@
       android:layout_height="match_parent"
       android:layout_gravity="top" />
 
-  <ImageView
+  <ImageButton
       android:id="@+id/endScan"
       android:layout_width="106dp"
       android:layout_height="116dp"
       android:layout_alignBottom="@id/surfaceview"
       android:layout_centerHorizontal="true"
       app:srcCompat="@android:drawable/ic_media_play">
-  </ImageView>
+  </ImageButton>
 
 </RelativeLayout>

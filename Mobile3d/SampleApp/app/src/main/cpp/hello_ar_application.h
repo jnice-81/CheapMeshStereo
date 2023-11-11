@@ -73,6 +73,8 @@ class HelloArApplication {
   void OnDrawFrame(bool depthColorVisualizationEnabled,
                    bool useDepthForOcclusion);
 
+  void ComputeSurface();
+
  private:
   glm::mat3 GetTextureTransformMatrix(const ArSession* session,
                                       const ArFrame* frame);

@@ -73,7 +73,7 @@ JNI_METHOD(void, onGlSurfaceCreated)
 }
 
 JNI_METHOD(void, onDisplayGeometryChanged)
-(JNIEnv *, jobject, jlong native_application, int display_rotation, int width,
+(JNIEnv *, jclass, jlong native_application, int display_rotation, int width,
  int height) {
   native(native_application)
       ->OnDisplayGeometryChanged(display_rotation, width, height);
@@ -84,6 +84,11 @@ JNI_METHOD(void, onGlSurfaceDrawFrame)
  jboolean depth_color_visualization_enabled, jboolean use_depth_for_occlusion) {
   native(native_application)
       ->OnDrawFrame(depth_color_visualization_enabled, use_depth_for_occlusion);
+}
+
+JNI_METHOD(void, computeSurface)
+(JNIEnv *, jclass, jlong native_application) {
+  native(native_application)->ComputeSurface();
 }
 
 JNIEnv *GetJniEnv() {

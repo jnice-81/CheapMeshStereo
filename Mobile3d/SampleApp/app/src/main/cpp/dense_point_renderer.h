@@ -92,7 +92,7 @@ class dense_point_renderer {
 
     GLuint VBO, VAO, EBO, InstanceBuffer;
     GLuint shaderProgram;
-    GLuint mvp_uniform, normal_uniform, position_uniform;
+    GLuint mvp_uniform;
 
     InstanceData *data = nullptr;
     unsigned int lastSize;

@@ -27,7 +27,7 @@
 
 #include <android/log.h>
 
-//#include "PoissonSurfaceReconstruct.h"
+#include "PoissonSurfaceReconstruct.h"
 
 namespace hello_ar {
 
@@ -248,6 +248,14 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     point_cloud_renderer_.Draw(projection_mat * view_mat, ar_session_, ar_point_cloud);
     ArPointCloud_release(ar_point_cloud);
   }
+}
+
+void HelloArApplication::ComputeSurface() {
+    collectedScene.filterConfidence(4);
+    collectedScene.filterOutliers(10, 200);
+    collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
+    //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(collectedScene, "/data/data/com.google.ar.core.examples.c.helloar/out.ply");
+    LOGI("Done");
 }
 
 void HelloArApplication::ConfigureSession() {
