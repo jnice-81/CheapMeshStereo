@@ -21,7 +21,7 @@ public:
 class ScenePoint {
 public:
 	cv::Vec3f normal;
-	float confidence;
+	float confidence = 0;
 };
 
 class RenderHelper {
@@ -91,7 +91,7 @@ public:
 		return renderHelper.projectPoint(getCenterOfVoxel(point));
 	}
 
-	int filterConfidence(const float minConfidence) {
+	std::size_t filterConfidence(const float minConfidence) {
 		auto end = surfacePoints.end();
 		std::vector<cv::Vec3i> toRemove;
 
@@ -104,9 +104,11 @@ public:
 		for (auto g : toRemove) {
 			surfacePoints.erase(g);
 		}
+
+		return toRemove.size();
 	}
 
-	int filterOutliers(const int l1radius, const int minhits) {
+	std::size_t filterOutliers(const int l1radius, const int minhits) {
 		// This thing is dependent on order, cause as outliers are removed, other points
 		// that were before not outliers might become outliers. Anyway this is not handled here
 		// for the sake of easy code and speed.

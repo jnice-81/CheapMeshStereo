@@ -53,11 +53,11 @@ int main()
         views.emplace_back(image, intrinsics, extrinsics);
     }
 
-    Scene gm(0.03);
+    Scene gm(0.01);
     Reconstruct g(gm);
 
     //for (int i = views.size()-1; i >= views.size()-2; i--) {
-    for (int i = 0; i < views.size(); i++) {
+    for (int i = views.size()- 1; i >= 0; i--) {
         views[i].extrinsics = View::oglExtrinsicsToCVExtrinsics(views[i].extrinsics);
         views[i].intrinsics = View::oglIntrinsicsToCVIntrinsics(views[i].intrinsics, views[i].image.size());
         g.add_image(views[i]);
@@ -68,9 +68,8 @@ int main()
     //cv::waitKey(0);
     
 
-    //gm.filterConfidence(10);
-    //gm.filterOutliers(2, 10);
-    //gm.filterOutliers(2, 10);
+    gm.filterConfidence(4);
+    //gm.filterOutliers(10, 200);
     gm.export_xyz("h.xyz");
 
     //gm.import_xyz("h.xyz");

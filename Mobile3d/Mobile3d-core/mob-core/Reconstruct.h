@@ -58,9 +58,15 @@ public:
 
 		cv::Size imgsize = v1.image.size();
 		cv::Mat rR1, rR2, rP1, rP2, Q;
+		cv::Rect validRoiV1, validRoiV2;
 
 		cv::stereoRectify(v1.intrinsics, cv::Mat(), v2.intrinsics, cv::Mat(), imgsize,
-			R, T, rR1, rR2, rP1, rP2, Q, cv::CALIB_ZERO_DISPARITY);
+			R, T, rR1, rR2, rP1, rP2, Q, cv::CALIB_ZERO_DISPARITY, -1, cv::Size(), &validRoiV1, &validRoiV2);
+
+		if (rP2.at<double>(1, 3) != 0) {
+			return; // Indicates vertical rectification which is not supported for now
+		}
+		double shiftedTo = rP2.at<double>(0, 3) / rP2.at<double>(0, 0);
 
 		cv::Mat map1x, map1y, map2x, map2y;
 		cv::initUndistortRectifyMap(v1.intrinsics, cv::Mat(), rR1, rP1, imgsize, CV_16SC2, map1x, map1y);
@@ -71,19 +77,26 @@ public:
 		cv::remap(v2.image, rectified_image2, map2x, map2y, cv::INTER_LINEAR);
 
 		csc.printAndReset("Rectify");
-		/*
-		cv::imshow("v1", rectified_image1);
-		cv::imshow("v2", rectified_image2);
-		cv::waitKey(0);
 
+		/*
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v1.jpg", rectified_image1);
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v2.jpg", rectified_image2);
 		*/
 
-		int ndisp = 30 * 16;
-		int mindisp = -(ndisp / 2);
+		int ndisp = 15 * 16;
+		int mindisp;
+		if (shiftedTo > 0) {
+			mindisp = -15 * 16;
+		}
+		else {
+			mindisp = 0;
+		}
+		
 		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(ndisp, 21);
 		blocksearcher->setMinDisparity(mindisp);
+		blocksearcher->setUniquenessRatio(10);
+		blocksearcher->setROI1(validRoiV1);
+		blocksearcher->setROI2(validRoiV2);
 		
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
@@ -92,6 +105,15 @@ public:
 		disparity /= 16;
 
 		csc.printAndReset("Disparity");
+
+		/*
+		cv::normalize(disparity, disparity, 0, 255, cv::NORM_MINMAX);
+		disparity.convertTo(disparity, CV_8U);
+		cv::imshow("v1", rectified_image1);
+		cv::imshow("v2", rectified_image2);
+		cv::imshow("disp", disparity);
+		cv::waitKey(0);
+		*/
 
 		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1);
 
