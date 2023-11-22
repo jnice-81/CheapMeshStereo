@@ -69,6 +69,16 @@ protected:
 			}
 		}
 
+		virtual void erase(cv::Vec3f p) {
+			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
+			auto c = this->find(pI);
+			c->second.erase(p);
+			if (c->second.getPointCount() == 0) {
+				this->std::unordered_map<cv::Vec3i, TreeLevel<CurrentLevel + 1, MaxLevel>, VecHash>::erase(pI);
+			}
+			num_points--;
+		}
+
 		TreeIterator<CurrentLevel, MaxLevel> treeIteratorBegin() {
 			return TreeIterator<CurrentLevel, MaxLevel>(this->begin(), this->end());
 		}
@@ -105,6 +115,11 @@ protected:
 				this->insert(std::make_pair(pI, q));
 				return true;
 			}
+		}
+
+		virtual void erase(cv::Vec3f p) {
+			cv::Vec3i pI = parent->retrieveVoxel(p, MaxLevel);
+			this->std::unordered_map<cv::Vec3i, ScenePoint, VecHash>::erase(pI);
 		}
 
 		TreeIterator<MaxLevel, MaxLevel> treeIteratorBegin() {
@@ -220,6 +235,10 @@ public:
 		surfacePoints.insert_or_update(point, normal, confidence);
 	}
 
+	inline void treeErase(const cv::Vec3f point) {
+		surfacePoints.erase(point);
+	}
+
 	inline TreeLevel<0, Levels>& getSceneData() {
 		return surfacePoints;
 	}
@@ -273,23 +292,30 @@ public:
 		return addVoxelCenter((cv::Vec3f)q * this->voxelSideLength);
 	}
 
-	/*
-	std::size_t filterConfidence(const float minConfidence) {
+	
+	std::size_t filterConfidence() {
 		std::vector<cv::Vec3i> toRemove;
+		float avgConfidence = 0;
 
-		for (auto it = surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			if (it->second.confidence <= minConfidence) {
+		size_t psize = this->surfacePoints.getPointCount();
+		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			avgConfidence += it->second.confidence * (1.0 / psize);
+		}
+
+		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			if (it->second.confidence <= avgConfidence * 0.7) {
 				toRemove.push_back(it->first);
 			}
 		}
 
 		for (auto g : toRemove) {
-			surfacePoints.treeErase(g);
+			this->treeErase(voxelToPoint(g));
 		}
 
 		return toRemove.size();
 	}
 
+	/*
 	std::size_t filterOutliers(const int l1radius, const int minhits) {
 		// This thing is dependent on order, cause as outliers are removed, other points
 		// that were before not outliers might become outliers. Anyway this is not handled here
