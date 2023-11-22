@@ -33,7 +33,7 @@ DAMAGE.
 #include <Reconstructors.h>
 #pragma warning(pop)
 
-template <typename Index, typename Real, unsigned int Dim>
+template <typename Index, typename Real, unsigned int Dim, unsigned int SceneLevels>
 class PoissonSurfaceReconstruct {
 private:
 
@@ -68,7 +68,7 @@ private:
 
 	struct SceneInputStream : public Reconstructor::InputSampleStream<Real, Dim> {
 
-		SceneInputStream(Scene &s) : scene(s) {
+		SceneInputStream(Scene<SceneLevels> &s) : scene(s) {
 			current = s.getScenePoints().begin();
 		}
 
@@ -96,11 +96,11 @@ private:
 
 	private:
 		std::unordered_map<cv::Vec3i, ScenePoint, VecHash>::iterator current;
-		Scene& scene;
+		Scene<SceneLevels>& scene;
 	};
 
 public:
-	static void reconstructSurface(Scene& scene,
+	static void reconstructSurface(Scene<SceneLevels>& scene,
 		Reconstructor::Poisson::SolutionParameters<Real>& solverParams,
 		Reconstructor::LevelSetExtractionParameters& extractionParams,
 		std::vector<Real>& vCoordinates,
@@ -148,7 +148,7 @@ public:
 		}
 	}
 
-	static void reconstructAndExport(Scene &scene, std::string filename, int depth = 8) {
+	static void reconstructAndExport(Scene<SceneLevels> &scene, std::string filename, int depth = 8) {
 		Reconstructor::Poisson::SolutionParameters<Real> solverParams;
 		solverParams.depth = depth;
 		solverParams.verbose = false;

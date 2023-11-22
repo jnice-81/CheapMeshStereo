@@ -101,8 +101,8 @@ class HelloArApplication {
   BackgroundRenderer background_renderer_;
   dense_point_renderer densePointRenderer_;
 
-  Scene collectedScene;
-  Reconstruct sceneReconstructor;
+  Scene<3> collectedScene;
+  Reconstruct<3> sceneReconstructor;
   std::list<GLubyte*> oldimages;
   std::future<void> reconstructionFuture;
 

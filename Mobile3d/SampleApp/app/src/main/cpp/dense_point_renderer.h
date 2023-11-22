@@ -108,7 +108,7 @@ class dense_point_renderer {
 public:
     void InitializeGLContent();
 
-    void draw(Scene &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints);
+    void draw(Scene<3> &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints);
 
     ~dense_point_renderer();
 };

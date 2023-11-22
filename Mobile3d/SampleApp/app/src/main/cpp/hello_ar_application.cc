@@ -27,12 +27,12 @@
 
 #include <android/log.h>
 
-#include "PoissonSurfaceReconstruct.h"
+//#include "PoissonSurfaceReconstruct.h"
 
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.03), sceneReconstructor(collectedScene) {}
+    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 10, 5})), sceneReconstructor(collectedScene) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -231,7 +231,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
           delete[] old;
           oldimages.pop_front();
       }
-      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding %d", collectedScene.getScenePoints().size());
+      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding %d", collectedScene.getSceneData().getPointCount());
   }
 
     densePointRenderer_.draw(collectedScene, projection_mat * view_mat, reconstruction_status == std::future_status::ready);
@@ -247,8 +247,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 }
 
 void HelloArApplication::ComputeSurface() {
-    collectedScene.filterConfidence(4);
-    collectedScene.filterOutliers(10, 200);
+    //collectedScene.filterConfidence(4);
+    //collectedScene.filterOutliers(10, 200);
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
     //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(collectedScene, "/data/data/com.google.ar.core.examples.c.helloar/out.ply");
     LOGI("Done");

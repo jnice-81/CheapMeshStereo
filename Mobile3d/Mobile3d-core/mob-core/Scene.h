@@ -24,6 +24,207 @@ public:
 	float confidence = 0;
 };
 
+class TreeIterator;
+
+template<int Levels>
+class HierachicalVoxelGrid {
+protected:
+
+	template<int CurrentLevel, int MaxLevel>
+	class TreeIterator;
+
+	template<int CurrentLevel, int MaxLevel>
+	class TreeLevel : public std::unordered_map<cv::Vec3i, TreeLevel<CurrentLevel + 1, MaxLevel>, VecHash> {
+	private:
+		HierachicalVoxelGrid *parent;
+		size_t num_points = 0;
+	public:
+		TreeLevel(HierachicalVoxelGrid *parent)
+		{
+			this->parent = parent;
+		}
+
+		inline size_t getPointCount() const {
+			return num_points;
+		}
+
+		bool insert_or_update(cv::Vec3f p, const cv::Vec3f normal, const float confidence) {
+			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
+			auto c = this->find(pI);
+			if (c != this->end()) {
+				if (c->second.insert_or_update(p, normal, confidence)) {
+					num_points++;
+					return true;
+				}
+				else {
+					return false;
+				}
+			}
+			else {
+				auto n = TreeLevel<CurrentLevel + 1, MaxLevel>(parent);
+				n.insert_or_update(p, normal, confidence);
+				this->insert(std::make_pair(pI, n));
+				num_points++;
+				return true;
+			}
+		}
+
+		TreeIterator<CurrentLevel, MaxLevel> treeIteratorBegin() {
+			return TreeIterator<CurrentLevel, MaxLevel>(this->begin(), this->end());
+		}
+
+	};
+
+	template<int MaxLevel>
+	class TreeLevel<MaxLevel, MaxLevel> : public std::unordered_map<cv::Vec3i, ScenePoint, VecHash> {
+	private:
+		HierachicalVoxelGrid *parent;
+	public:
+		TreeLevel(HierachicalVoxelGrid *parent)
+		{
+			this->parent = parent;
+		}
+
+		inline size_t getPointCount() const {
+			return this->size();
+		}
+
+		bool insert_or_update(cv::Vec3f p, const cv::Vec3f normal, const float confidence) {
+			cv::Vec3i pI = parent->retrieveVoxel(p, MaxLevel);
+			auto it = this->find(pI);
+			if (it != this->end()) {
+				float oldconfidence = it->second.confidence;
+				it->second.confidence = oldconfidence + confidence;
+				it->second.normal = (oldconfidence * it->second.normal + confidence * normal) / it->second.confidence;
+				return false;
+			}
+			else {
+				ScenePoint q;
+				q.normal = normal;
+				q.confidence = confidence;
+				this->insert(std::make_pair(pI, q));
+				return true;
+			}
+		}
+
+		TreeIterator<MaxLevel, MaxLevel> treeIteratorBegin() {
+			return TreeIterator<MaxLevel, MaxLevel>(this->begin(), this->end());
+		}
+	};
+
+	template<int CurrentLevel, int MaxLevel>
+	class TreeIterator {
+	private:
+		TreeIterator<CurrentLevel + 1, MaxLevel> lowerIt;
+		typename TreeLevel<CurrentLevel, MaxLevel>::iterator upperIt;
+		typename TreeLevel<CurrentLevel, MaxLevel>::iterator end;
+	public:
+		TreeIterator(typename TreeLevel<CurrentLevel, MaxLevel>::iterator start, typename TreeLevel<CurrentLevel, MaxLevel>::iterator end) {
+			this->upperIt = start;
+			this->end = end;
+			if (upperIt != end) {
+				this->lowerIt = start->second.treeIteratorBegin();
+			}
+		}
+
+		TreeIterator() {}
+
+		void operator++(int) {
+			lowerIt++;
+			if (lowerIt.isEnd()) {
+				upperIt++;
+				if (upperIt != end) {
+					lowerIt = upperIt->second.treeIteratorBegin();
+				}
+			}
+		}
+
+		std::pair<const cv::Vec3i, ScenePoint>& operator*() {
+			return *lowerIt;
+		}
+
+		std::pair<const cv::Vec3i, ScenePoint>* operator->() {
+			return &*lowerIt;
+		}
+
+		bool isEnd() {
+			return this->upperIt == this->end;
+		}
+	};
+
+	template<int MaxLevel>
+	class TreeIterator<MaxLevel, MaxLevel> {
+	private:
+		typename TreeLevel<MaxLevel, MaxLevel>::iterator it;
+		typename TreeLevel<MaxLevel, MaxLevel>::iterator end;
+	public:
+		TreeIterator(typename TreeLevel<MaxLevel, MaxLevel>::iterator start, typename TreeLevel<MaxLevel, MaxLevel>::iterator end) {
+			this->it = start;
+			this->end = end;
+		}
+
+		TreeIterator() {}
+
+		void operator++(int) {
+			it++;
+		}
+
+		std::pair<const cv::Vec3i, ScenePoint>* operator->() {
+			return &*it;
+		}
+
+		std::pair<const cv::Vec3i, ScenePoint>& operator*() {
+			return *it;
+		}
+
+		bool isEnd() {
+			return this->it == end;
+		}
+	};
+
+
+	std::vector<double> preprocVoxelSizes;
+	TreeLevel<0, Levels> surfacePoints;
+	double voxelSideLength;
+
+	template<typename It, typename Ft, unsigned int Dim>
+	static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
+		cv::Vec<It, Dim> g;
+		for (int i = 0; i < Dim; i++) {
+			if (in[i] < 0) {
+				g[i] = (It)(in[i] - 1);
+			}
+			else {
+				g[i] = (It)in[i];
+			}
+		}
+		return g;
+	}
+
+public:
+	HierachicalVoxelGrid(double voxelSideLength, std::vector<int> &indexBlocks) : surfacePoints(this) {
+		preprocVoxelSizes.resize(1 + indexBlocks.size());
+		preprocVoxelSizes[indexBlocks.size() - 1 + 1] = voxelSideLength;
+		this->voxelSideLength = voxelSideLength;
+		for (int j = (int)preprocVoxelSizes.size() - 2; j >= 0; j--) {
+			preprocVoxelSizes[j] = preprocVoxelSizes[j + 1] * indexBlocks[j];
+		}
+	}
+
+	// Level: Starts at 0 goes downward
+	inline cv::Vec3i retrieveVoxel(const cv::Vec3f p, const int level) const {
+		return floatToIntVec<int, float, 3>(p / preprocVoxelSizes[level]);
+	}
+
+	inline void addPoint(const cv::Vec3f point, const cv::Vec3f normal, const float confidence) {
+		surfacePoints.insert_or_update(point, normal, confidence);
+	}
+
+	inline TreeLevel<0, Levels>& getSceneData() {
+		return surfacePoints;
+	}
+};
+
 class RenderHelper {
 public:
 	RenderHelper(View& v) {
@@ -49,60 +250,41 @@ public:
 	cv::Matx44d P;
 };
 
-class Scene {
+template<int Levels>
+class Scene : public HierachicalVoxelGrid<Levels> {
 public:
-	Scene(double voxelSideLength) {
-		this->voxelSideLength = voxelSideLength;
-	}
-
-	inline void addPoint(cv::Vec3f point, cv::Vec3f normal, float confidence) {
-		cv::Vec3i q = floatToIntVec<int, float, 3>(point / voxelSideLength);
-		auto old = surfacePoints.find(q);
-		if(old == surfacePoints.end()) {
-			ScenePoint s;
-			s.normal = normal;
-			s.confidence = confidence;
-			surfacePoints.insert(std::make_pair(q, s));
-		}
-		else {
-			float oldconfidence = old->second.confidence;
-			old->second.confidence = oldconfidence + confidence;
-			old->second.normal = (oldconfidence * old->second.normal + confidence * normal) / old->second.confidence;
-		}
+	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels>(voxelSideLength, indexBlocks) {
+		
 	}
 
 	inline cv::Vec3f addVoxelCenter(const cv::Vec3f voxel) const {
-		const float center = (float)voxelSideLength * 0.5f;
+		const float center = (float)this->voxelSideLength * 0.5f;
 		const cv::Vec3f toCenter(center, center, center);
 		return voxel + toCenter;
 	}
 
 	inline cv::Vec3f voxelToPoint(const cv::Vec3i voxelIdx) const {
 		cv::Vec3f p = voxelIdx;
-		return addVoxelCenter(p * voxelSideLength);
+		return addVoxelCenter(p * this->voxelSideLength);
 	}
 
 	inline cv::Vec3f getCenterOfVoxel(const cv::Vec3f point) const {
-		cv::Vec3i q = floatToIntVec<int, float, 3>(point / voxelSideLength);
-		return addVoxelCenter((cv::Vec3f)q * voxelSideLength);
+		cv::Vec3i q = this->template floatToIntVec<int, float, 3>(point / this->voxelSideLength);
+		return addVoxelCenter((cv::Vec3f)q * this->voxelSideLength);
 	}
 
-	inline cv::Vec3f centerAndRenderBack(const RenderHelper& renderHelper, const cv::Vec3f point) const {
-		return renderHelper.projectPoint(getCenterOfVoxel(point));
-	}
-
+	/*
 	std::size_t filterConfidence(const float minConfidence) {
-		auto end = surfacePoints.end();
 		std::vector<cv::Vec3i> toRemove;
 
-		for (auto it = surfacePoints.begin(); it != end; it++) {
+		for (auto it = surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			if (it->second.confidence <= minConfidence) {
 				toRemove.push_back(it->first);
 			}
 		}
 
 		for (auto g : toRemove) {
-			surfacePoints.erase(g);
+			surfacePoints.treeErase(g);
 		}
 
 		return toRemove.size();
@@ -114,7 +296,7 @@ public:
 		// for the sake of easy code and speed.
 		std::vector<cv::Vec3i> toRemove;
 
-		for (auto it = surfacePoints.begin(); it != surfacePoints.end(); it++) {
+		for (auto it = surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			cv::Vec3i c = it->first;
 			int hits = 0;
 
@@ -122,7 +304,7 @@ public:
 				for (int j = -l1radius; j <= l1radius; j++) {
 					for (int k = -l1radius; k <= l1radius; k++) {
 						cv::Vec3i h({ c[0] + i, c[1] + j, c[2] + k });
-						if (surfacePoints.find(h) != surfacePoints.end()) {
+						if (surfacePoints.treeFind(h)) {
 							hits++;
 							if (hits >= minhits) {
 								goto END_OF_CHECK;
@@ -139,18 +321,20 @@ public:
 		}
 
 		for (auto it = toRemove.begin(); it != toRemove.end(); it++) {
-			surfacePoints.erase(*it);
+			surfacePoints.treeErase(*it);
 		}
 
 		return toRemove.size();
 	}
+	
+	*/
 
 	void export_xyz(std::string path) {
 		std::ofstream f(path, std::ios_base::out);
-		for (const auto& t : surfacePoints) {
-			cv::Vec3f u = t.first;
-			cv::Vec3f v = addVoxelCenter(u * voxelSideLength);
-			cv::Vec3f n = t.second.normal;
+		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			cv::Vec3f u = it->first;
+			cv::Vec3f v = addVoxelCenter(u * this->voxelSideLength);
+			cv::Vec3f n = it->second.normal;
 			f << v[0] << " " << v[1] << " " << v[2] << " " << n[0] << " " << n[1] << " " << n[2] << std::endl;
 		}
 		f.close();
@@ -171,25 +355,22 @@ public:
 				n[local % 3] = current;
 			}
 			if (local == 5) {
-				addPoint(v, n, 1.0);
+				this->addPoint(v, n, 1.0);
 			}
 
 			idx++;
 		}
 		if (idx % 6 != 0) {
-			std::cerr << "Something was wrong when reading the file in import_xyz";
+			throw "Something was wrong when reading the file in import_xyz";
 		}
 		f.close();
 	}
 
-	inline double getVoxelSideLength() {
-		return voxelSideLength;
+	inline double getVoxelSideLength() const {
+		return this->voxelSideLength;
 	}
 
-	inline std::unordered_map<cv::Vec3i, ScenePoint, VecHash>& getScenePoints(){
-		return surfacePoints;
-	}
-
+	/*
 	cv::Mat directRender(View& v, float zfar = 1.0f, bool renderNormals = false) {
 		cv::Size imgsize = v.image.size();
 		cv::Mat result;
@@ -202,9 +383,8 @@ public:
 		}
 		 
 		RenderHelper rhelper(v);
-		auto endSurface = surfacePoints.end();
 
-		for (auto it = surfacePoints.begin(); it != endSurface; it++) {
+		for (auto it = surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			cv::Vec3f p = voxelToPoint(it->first);
 			cv::Vec3f project = rhelper.projectPoint(p);
 			cv::Vec3i pdash = floatToIntVec<int, float, 3>(project);
@@ -228,21 +408,5 @@ public:
 
 		return result;
 	}
-private:
-	template<typename It, typename Ft, unsigned int Dim>
-	static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
-		cv::Vec<It, Dim> g;
-		for (int i = 0; i < Dim; i++) {
-			if (in[i] < 0) {
-				g[i] = (It)(in[i] - 1);
-			}
-			else {
-				g[i] = (It)in[i];
-			}
-		}
-		return g;
-	}
-
-	double voxelSideLength;
-	std::unordered_map<cv::Vec3i, ScenePoint, VecHash> surfacePoints;
+	*/
 };

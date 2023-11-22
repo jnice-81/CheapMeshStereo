@@ -3,6 +3,7 @@
 #define WINDOWS
 //#define LINUX
 #include "mob-core/Reconstruct.h"
+//#include "mob-core/PoissonSurfaceReconstruct.h"
 
 using jfile = nlohmann::json;
 
@@ -24,6 +25,7 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
     return matrix;
 }
 
+
 int main()
 {
     #ifdef LINUX
@@ -32,7 +34,7 @@ int main()
     #ifdef WINDOWS
         const std::string base_dir = "C:/Users/Admin/Desktop/Mobile3d/3dmodels";
     #endif
-    const std::string project_name = "old/corner";
+    const std::string project_name = "old/sofa";
     const std::string projectfolder = base_dir + "/" + project_name;
 
     std::ifstream arcorefile(projectfolder + "/ARCoreData.json");
@@ -53,11 +55,11 @@ int main()
         views.emplace_back(image, intrinsics, extrinsics);
     }
 
-    Scene gm(0.01);
+    Scene<2> gm(0.001, std::vector<int>({10, 10}));
     Reconstruct g(gm);
 
-    //for (int i = views.size()-1; i >= views.size()-2; i--) {
-    for (int i = views.size()- 1; i >= 0; i--) {
+
+    for (int i = views.size()-1; i >= 0; i--) {
         views[i].extrinsics = View::oglExtrinsicsToCVExtrinsics(views[i].extrinsics);
         views[i].intrinsics = View::oglIntrinsicsToCVIntrinsics(views[i].intrinsics, views[i].image.size());
         g.add_image(views[i]);
@@ -68,7 +70,7 @@ int main()
     //cv::waitKey(0);
     
 
-    gm.filterConfidence(4);
+    //gm.filterConfidence(4);
     //gm.filterOutliers(10, 200);
     gm.export_xyz("h.xyz");
 

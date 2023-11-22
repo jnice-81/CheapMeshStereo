@@ -67,7 +67,7 @@ void dense_point_renderer::InitializeGLContent() {
     hello_ar::util::CheckGlError("Something went wrong during initialization of dense point renderer");
 }
 
-void dense_point_renderer::draw(Scene &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints) {
+void dense_point_renderer::draw(Scene<3> &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints) {
     CHECK(shaderProgram);
 
     glUseProgram(shaderProgram);
@@ -81,24 +81,25 @@ void dense_point_renderer::draw(Scene &scene, const glm::mat4& mvp_matrix, bool 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
     if (canUpdatePoints) {
-        auto points = scene.getScenePoints();
-        if (points.size() != lastSize) {
+        auto points = scene.getSceneData();
+        size_t pointCount = points.getPointCount();
+        if (pointCount != lastSize) {
             if (data != nullptr) {
                 delete[] data;
             }
 
-            data = new InstanceData[points.size()];
+            data = new InstanceData[pointCount];
             int instanceId = 0;
-            for (auto m : points) {
-                data[instanceId].position = scene.voxelToPoint(m.first);
-                data[instanceId].normal = m.second.normal;
+            for (auto it = points.treeIteratorBegin(); !it.isEnd(); it++) {
+                data[instanceId].position = scene.voxelToPoint(it->first);
+                data[instanceId].normal = it->second.normal;
                 instanceId++;
             }
 
             glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(InstanceData) * points.size(), data, GL_STATIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(InstanceData) * pointCount, data, GL_STATIC_DRAW);
 
-            lastSize = points.size();
+            lastSize = pointCount;
         }
     }
 
