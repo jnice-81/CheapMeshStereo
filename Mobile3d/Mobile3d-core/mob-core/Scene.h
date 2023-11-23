@@ -28,8 +28,21 @@ class TreeIterator;
 
 template<int Levels>
 class HierachicalVoxelGrid {
-protected:
+public:
+	class LevelInfo {
+	public:
+		LevelInfo(cv::Vec3i voxelPosition, size_t pointCount, size_t childCount) {
+			this->voxelPosition = voxelPosition;
+			this->pointCount = pointCount;
+			this->childCount = childCount;
+		}
 
+		cv::Vec3i voxelPosition;
+		size_t pointCount;
+		size_t childCount;
+	};
+
+protected:
 	template<int CurrentLevel, int MaxLevel>
 	class TreeIterator;
 
@@ -69,14 +82,47 @@ protected:
 			}
 		}
 
-		virtual void erase(cv::Vec3f p) {
+		template<int SelectLevel>
+		size_t eraseVoxel(cv::Vec3f p) {
 			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
 			auto c = this->find(pI);
-			c->second.erase(p);
-			if (c->second.getPointCount() == 0) {
-				this->std::unordered_map<cv::Vec3i, TreeLevel<CurrentLevel + 1, MaxLevel>, VecHash>::erase(pI);
+			if constexpr (SelectLevel == CurrentLevel) {
+				size_t points;
+				points = c->second.getPointCount();
+				this->erase(pI);
+				num_points -= points;
+				return points;
 			}
-			num_points--;
+			else {
+				size_t erased = c->second.eraseVoxel<SelectLevel>(p);
+				if (c->second.getPointCount() == 0) {
+					this->erase(pI);
+				}
+				num_points -= erased;
+				return erased;
+			}
+		}
+
+		template<int SelectLevel>
+		TreeIterator<SelectLevel, MaxLevel> findSuperVoxel(const cv::Vec3f p) {
+			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
+			auto g = this->find(pI);
+			if constexpr (SelectLevel == CurrentLevel) {
+				if (g != this->end()) {
+					return TreeIterator<SelectLevel, MaxLevel>(g, this->end());
+				}
+				else {
+					return TreeIterator<SelectLevel, MaxLevel>();
+				}
+			}
+			else {
+				if (g != this->end()) {
+					return g->second.findSuperVoxel<SelectLevel>(p);
+				}
+				else {
+					return TreeIterator<SelectLevel, MaxLevel>();
+				}
+			}
 		}
 
 		TreeIterator<CurrentLevel, MaxLevel> treeIteratorBegin() {
@@ -117,9 +163,11 @@ protected:
 			}
 		}
 
-		virtual void erase(cv::Vec3f p) {
+		template <int SelectLevel>
+		size_t eraseVoxel(cv::Vec3f p) {
 			cv::Vec3i pI = parent->retrieveVoxel(p, MaxLevel);
-			this->std::unordered_map<cv::Vec3i, ScenePoint, VecHash>::erase(pI);
+			this->erase(pI);
+			return 1;
 		}
 
 		TreeIterator<MaxLevel, MaxLevel> treeIteratorBegin() {
@@ -133,7 +181,19 @@ protected:
 		TreeIterator<CurrentLevel + 1, MaxLevel> lowerIt;
 		typename TreeLevel<CurrentLevel, MaxLevel>::iterator upperIt;
 		typename TreeLevel<CurrentLevel, MaxLevel>::iterator end;
+		bool empty = false;
+
+		inline void increaseUpperIt() {
+			upperIt++;
+			if (upperIt != end) {
+				lowerIt = upperIt->second.treeIteratorBegin();
+			}
+		}
 	public:
+		TreeIterator() {
+			empty = true;
+		}
+
 		TreeIterator(typename TreeLevel<CurrentLevel, MaxLevel>::iterator start, typename TreeLevel<CurrentLevel, MaxLevel>::iterator end) {
 			this->upperIt = start;
 			this->end = end;
@@ -142,15 +202,35 @@ protected:
 			}
 		}
 
-		TreeIterator() {}
-
 		void operator++(int) {
 			lowerIt++;
 			if (lowerIt.isEnd()) {
-				upperIt++;
-				if (upperIt != end) {
-					lowerIt = upperIt->second.treeIteratorBegin();
+				increaseUpperIt();
+			}
+		}
+
+		template<int SelectLevel>
+		bool jump() {
+			if constexpr (SelectLevel == CurrentLevel) {
+				increaseUpperIt();
+				return upperIt != end;
+			}
+			else {
+				if (!lowerIt.jump<SelectLevel>()) {
+					increaseUpperIt();
+					return upperIt != end;
 				}
+				return true;
+			}
+		}
+
+		template<int SelectLevel>
+		LevelInfo getLevelInfo() {
+			if constexpr (SelectLevel == CurrentLevel) {
+				return LevelInfo(upperIt->first, upperIt->second.getPointCount(), upperIt->second.size());
+			}
+			else {
+				return lowerIt.getLevelInfo<SelectLevel>();
 			}
 		}
 
@@ -163,7 +243,7 @@ protected:
 		}
 
 		bool isEnd() {
-			return this->upperIt == this->end;
+			return empty || this->upperIt == this->end;
 		}
 	};
 
@@ -172,16 +252,29 @@ protected:
 	private:
 		typename TreeLevel<MaxLevel, MaxLevel>::iterator it;
 		typename TreeLevel<MaxLevel, MaxLevel>::iterator end;
+		bool empty = false;
 	public:
+		TreeIterator() {
+			empty = true;
+		}
+
 		TreeIterator(typename TreeLevel<MaxLevel, MaxLevel>::iterator start, typename TreeLevel<MaxLevel, MaxLevel>::iterator end) {
 			this->it = start;
 			this->end = end;
 		}
 
-		TreeIterator() {}
-
 		void operator++(int) {
 			it++;
+		}
+
+		template<int SelectLevel>
+		bool jump() {
+			throw "Likely not what you wanted to do; jump hit maxlevel";
+		}
+
+		template<int SelectLevel>
+		LevelInfo getLevelInfo() {
+			throw "Likely not what you wanted to do; getLevel hit maxlevel";
 		}
 
 		std::pair<const cv::Vec3i, ScenePoint>* operator->() {
@@ -193,10 +286,9 @@ protected:
 		}
 
 		bool isEnd() {
-			return this->it == end;
+			return empty || this->it == end;
 		}
 	};
-
 
 	std::vector<double> preprocVoxelSizes;
 	TreeLevel<0, Levels> surfacePoints;
@@ -228,7 +320,19 @@ public:
 
 	// Level: Starts at 0 goes downward
 	inline cv::Vec3i retrieveVoxel(const cv::Vec3f p, const int level) const {
-		return floatToIntVec<int, float, 3>(p / preprocVoxelSizes[level]);
+		cv::Vec3i r = floatToIntVec<int, float, 3>(p / preprocVoxelSizes[level]);
+		return r;
+	}
+
+	inline cv::Vec3f retrieveVoxelCenter(const int level) const {
+		const float center = (float)this->preprocVoxelSizes[level] * 0.5f;
+		const cv::Vec3f toCenter(center, center, center);
+		return toCenter;
+	}
+
+	inline cv::Vec3f retrievePoint(const cv::Vec3i c, const int level) const {
+		cv::Vec3f r = ((cv::Vec3f)c) * preprocVoxelSizes[level] + retrieveVoxelCenter(level);
+		return r;
 	}
 
 	inline void addPoint(const cv::Vec3f point, const cv::Vec3f normal, const float confidence) {
@@ -315,23 +419,28 @@ public:
 		return toRemove.size();
 	}
 
-	/*
+	
+	template<int OnLevel>
 	std::size_t filterOutliers(const int l1radius, const int minhits) {
 		// This thing is dependent on order, cause as outliers are removed, other points
 		// that were before not outliers might become outliers. Anyway this is not handled here
 		// for the sake of easy code and speed.
-		std::vector<cv::Vec3i> toRemove;
 
-		for (auto it = surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			cv::Vec3i c = it->first;
-			int hits = 0;
+		std::vector<cv::Vec3i> toRemove;
+		auto it = this->surfacePoints.treeIteratorBegin();
+		while (!it.isEnd()) {
+			cv::Vec3i c = it.getLevelInfo<OnLevel>().voxelPosition;
+			size_t hits = 0;
 
 			for (int i = -l1radius; i <= l1radius; i++) {
 				for (int j = -l1radius; j <= l1radius; j++) {
 					for (int k = -l1radius; k <= l1radius; k++) {
-						cv::Vec3i h({ c[0] + i, c[1] + j, c[2] + k });
-						if (surfacePoints.treeFind(h)) {
-							hits++;
+						cv::Vec3f h = this->retrievePoint(cv::Vec3i({ c[0] + i, c[1] + j, c[2] + k }), OnLevel);
+						auto m = this->surfacePoints.findSuperVoxel<OnLevel>(h);
+
+						if (!m.isEnd()) {
+							size_t gxp = m.getLevelInfo<OnLevel>().pointCount;
+							hits += gxp;
 							if (hits >= minhits) {
 								goto END_OF_CHECK;
 							}
@@ -340,20 +449,21 @@ public:
 				}
 			}
 
-			END_OF_CHECK:
 			if (hits < minhits) {
 				toRemove.push_back(c);
 			}
+
+		END_OF_CHECK:
+			it.jump<OnLevel>();
 		}
 
-		for (auto it = toRemove.begin(); it != toRemove.end(); it++) {
-			surfacePoints.treeErase(*it);
+		size_t removed = 0;
+		for (auto k : toRemove) {
+			cv::Vec3f p = this->retrievePoint(k, OnLevel);
+			removed += this->surfacePoints.eraseVoxel<OnLevel>(p);
 		}
-
-		return toRemove.size();
+		return removed;
 	}
-	
-	*/
 
 	void export_xyz(std::string path) {
 		std::ofstream f(path, std::ios_base::out);

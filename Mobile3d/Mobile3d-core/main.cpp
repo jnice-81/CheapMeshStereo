@@ -55,11 +55,12 @@ int main()
         views.emplace_back(image, intrinsics, extrinsics);
     }
 
-    Scene<2> gm(0.01, std::vector<int>({10, 10}));
+    Scene<2> gm(0.01, std::vector<int>({10, 3}));
     Reconstruct g(gm);
 
 
-    for (int i = 0; i < 2; i++) {
+    //for (int i = 0; i < views.size(); i++) {
+    for (int i = 0; i < views.size(); i++) {
         views[i].extrinsics = View::oglExtrinsicsToCVExtrinsics(views[i].extrinsics);
         views[i].intrinsics = View::oglIntrinsicsToCVIntrinsics(views[i].intrinsics, views[i].image.size());
         g.add_image(views[i]);
@@ -70,8 +71,9 @@ int main()
     //cv::waitKey(0);
     
 
-    gm.filterConfidence();
-    //gm.filterOutliers(10, 200);
+    //gm.filterConfidence();
+    std::cout << gm.filterOutliers<1>(3, 150) << std::endl;
+    std::cout << gm.filterOutliers<1>(1, 25) << std::endl;
     gm.export_xyz("h.xyz");
 
     //gm.import_xyz("h.xyz");
