@@ -13,10 +13,10 @@
 #include "Scene.h"
 //#include "PoissonSurfaceReconstruct.h"
 
-template<int Levels>
+template<int Levels, typename NodeStorage>
 class Reconstruct {
 public:
-	Reconstruct(Scene<Levels>& s) : scene(s) {}
+	Reconstruct(Scene<Levels, NodeStorage>& s) : scene(s) {}
 
 	bool shouldAddImage(const cv::Mat &newExtrinsics, float minNorm) {
 		const cv::Rect roiR = cv::Rect(0, 0, 3, 3);
@@ -224,5 +224,5 @@ private:
 	}
 
 	std::list<View> sliding_window;
-	Scene<Levels> &scene;
+	Scene<Levels, NodeStorage> &scene;
 };

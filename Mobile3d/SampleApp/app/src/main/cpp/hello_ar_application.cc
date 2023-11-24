@@ -32,7 +32,7 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 10, 5})), sceneReconstructor(collectedScene) {}
+    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 5, 3})), sceneReconstructor(collectedScene) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -218,6 +218,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       
       reconstructionFuture = std::async(std::launch::async, [this] {
           sceneReconstructor.update3d();
+          collectedScene.filterOutliers<1>(0, 200);
+          collectedScene.filterOutliers<2>(1, 50);
       });
 
         /*

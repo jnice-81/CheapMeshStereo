@@ -55,8 +55,8 @@ int main()
         views.emplace_back(image, intrinsics, extrinsics);
     }
 
-    Scene<2> gm(0.01, std::vector<int>({10, 3}));
-    Reconstruct g(gm);
+    Scene<3, bool> gm(0.03, std::vector<int>({10, 20, 2}));
+    Reconstruct<3, bool> g(gm);
 
 
     //for (int i = 0; i < views.size(); i++) {
@@ -72,8 +72,9 @@ int main()
     
 
     //gm.filterConfidence();
-    std::cout << gm.filterOutliers<1>(3, 150) << std::endl;
-    std::cout << gm.filterOutliers<1>(1, 25) << std::endl;
+    std::cout << gm.filterOutliers<1>(0, 200) << std::endl;
+    std::cout << gm.filterOutliers<2>(1, 50) << std::endl;
+    //std::cout << gm.filterOutliers<1>(1, 25) << std::endl;
     gm.export_xyz("h.xyz");
 
     //gm.import_xyz("h.xyz");

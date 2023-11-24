@@ -26,7 +26,7 @@ public:
 
 class TreeIterator;
 
-template<int Levels>
+template<int Levels, typename NodePayload>
 class HierachicalVoxelGrid {
 public:
 	class LevelInfo {
@@ -51,6 +51,7 @@ protected:
 	private:
 		HierachicalVoxelGrid *parent;
 		size_t num_points = 0;
+		NodePayload payload;
 	public:
 		TreeLevel(HierachicalVoxelGrid *parent)
 		{
@@ -94,7 +95,7 @@ protected:
 				return points;
 			}
 			else {
-				size_t erased = c->second.eraseVoxel<SelectLevel>(p);
+				size_t erased = c->second.template eraseVoxel<SelectLevel>(p);
 				if (c->second.getPointCount() == 0) {
 					this->erase(pI);
 				}
@@ -117,7 +118,7 @@ protected:
 			}
 			else {
 				if (g != this->end()) {
-					return g->second.findSuperVoxel<SelectLevel>(p);
+					return g->second.template findSuperVoxel<SelectLevel>(p);
 				}
 				else {
 					return TreeIterator<SelectLevel, MaxLevel>();
@@ -216,7 +217,7 @@ protected:
 				return upperIt != end;
 			}
 			else {
-				if (!lowerIt.jump<SelectLevel>()) {
+				if (!lowerIt.template jump<SelectLevel>()) {
 					increaseUpperIt();
 					return upperIt != end;
 				}
@@ -230,7 +231,7 @@ protected:
 				return LevelInfo(upperIt->first, upperIt->second.getPointCount(), upperIt->second.size());
 			}
 			else {
-				return lowerIt.getLevelInfo<SelectLevel>();
+				return lowerIt.template getLevelInfo<SelectLevel>();
 			}
 		}
 
@@ -373,10 +374,10 @@ public:
 	cv::Matx44d P;
 };
 
-template<int Levels>
-class Scene : public HierachicalVoxelGrid<Levels> {
+template<int Levels, typename NodeStorage>
+class Scene : public HierachicalVoxelGrid<Levels, NodeStorage> {
 public:
-	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels>(voxelSideLength, indexBlocks) {
+	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels, NodeStorage>(voxelSideLength, indexBlocks) {
 		
 	}
 
@@ -429,17 +430,17 @@ public:
 		std::vector<cv::Vec3i> toRemove;
 		auto it = this->surfacePoints.treeIteratorBegin();
 		while (!it.isEnd()) {
-			cv::Vec3i c = it.getLevelInfo<OnLevel>().voxelPosition;
+			cv::Vec3i c = it.template getLevelInfo<OnLevel>().voxelPosition;
 			size_t hits = 0;
 
 			for (int i = -l1radius; i <= l1radius; i++) {
 				for (int j = -l1radius; j <= l1radius; j++) {
 					for (int k = -l1radius; k <= l1radius; k++) {
 						cv::Vec3f h = this->retrievePoint(cv::Vec3i({ c[0] + i, c[1] + j, c[2] + k }), OnLevel);
-						auto m = this->surfacePoints.findSuperVoxel<OnLevel>(h);
+						auto m = this->surfacePoints.template findSuperVoxel<OnLevel>(h);
 
 						if (!m.isEnd()) {
-							size_t gxp = m.getLevelInfo<OnLevel>().pointCount;
+							size_t gxp = m.template getLevelInfo<OnLevel>().pointCount;
 							hits += gxp;
 							if (hits >= minhits) {
 								goto END_OF_CHECK;
@@ -454,13 +455,13 @@ public:
 			}
 
 		END_OF_CHECK:
-			it.jump<OnLevel>();
+			it.template jump<OnLevel>();
 		}
 
 		size_t removed = 0;
 		for (auto k : toRemove) {
 			cv::Vec3f p = this->retrievePoint(k, OnLevel);
-			removed += this->surfacePoints.eraseVoxel<OnLevel>(p);
+			removed += this->surfacePoints.template eraseVoxel<OnLevel>(p);
 		}
 		return removed;
 	}
