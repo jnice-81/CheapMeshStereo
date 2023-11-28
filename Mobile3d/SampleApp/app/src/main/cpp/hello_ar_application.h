@@ -25,7 +25,6 @@
 #include <memory>
 #include <set>
 #include <string>
-#include <unordered_map>
 #include <thread>
 #include <future>
 
@@ -101,8 +100,10 @@ class HelloArApplication {
   BackgroundRenderer background_renderer_;
   dense_point_renderer densePointRenderer_;
 
-  Scene<3> collectedScene;
-  Reconstruct<3> sceneReconstructor;
+  Scene<3, bool> collectedScene;
+  Reconstruct sceneReconstructor;
+  std::list<std::vector<ScenePoint>> reconstructorOutput;
+  size_t unfiltered_points = 0;
   std::list<GLubyte*> oldimages;
   std::future<void> reconstructionFuture;
 

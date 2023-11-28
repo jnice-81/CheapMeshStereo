@@ -67,7 +67,7 @@ void dense_point_renderer::InitializeGLContent() {
     hello_ar::util::CheckGlError("Something went wrong during initialization of dense point renderer");
 }
 
-void dense_point_renderer::draw(Scene<3> &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints) {
+void dense_point_renderer::draw(Scene<3, bool> &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints) {
     CHECK(shaderProgram);
 
     glUseProgram(shaderProgram);

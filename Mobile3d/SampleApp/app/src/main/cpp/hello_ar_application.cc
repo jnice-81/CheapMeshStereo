@@ -32,7 +32,7 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 5, 3})), sceneReconstructor(collectedScene) {}
+    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 20, 2})) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -217,9 +217,21 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       sceneReconstructor.add_image(current);
       
       reconstructionFuture = std::async(std::launch::async, [this] {
-          sceneReconstructor.update3d();
-          collectedScene.filterOutliers<1>(0, 200);
-          collectedScene.filterOutliers<2>(1, 50);
+          reconstructorOutput.push_back(std::vector<ScenePoint>());
+          sceneReconstructor.update3d(reconstructorOutput.back());
+          unfiltered_points += reconstructorOutput.back().size();
+          for (const ScenePoint &a : reconstructorOutput.back()) {
+              collectedScene.addPoint(a.position, a.normal, a.confidence);
+          }
+
+          while (unfiltered_points > 500000) {
+              collectedScene.filterOutliers<1>(0, 200, reconstructorOutput.front());
+              collectedScene.filterOutliers<2>(1, 40, reconstructorOutput.front());
+              unfiltered_points -= reconstructorOutput.front().size();
+              reconstructorOutput.pop_front();
+          }
+          //collectedScene.filterOutliers<1>(0, 200);
+          //collectedScene.filterOutliers<2>(1, 50);
       });
 
         /*

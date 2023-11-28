@@ -13,10 +13,9 @@
 #include "Scene.h"
 //#include "PoissonSurfaceReconstruct.h"
 
-template<int Levels, typename NodeStorage>
 class Reconstruct {
 public:
-	Reconstruct(Scene<Levels, NodeStorage>& s) : scene(s) {}
+	Reconstruct() {}
 
 	bool shouldAddImage(const cv::Mat &newExtrinsics, float minNorm) {
 		const cv::Rect roiR = cv::Rect(0, 0, 3, 3);
@@ -41,7 +40,7 @@ public:
 		}
 	}
 
-	void update3d() {
+	void update3d(std::vector<ScenePoint> &out) {
         if (sliding_window.size() < 2) {
             return;
         }
@@ -64,6 +63,7 @@ public:
 			R, T, rR1, rR2, rP1, rP2, Q, cv::CALIB_ZERO_DISPARITY, -1, cv::Size(), &validRoiV1, &validRoiV2);
 
 		if (rP2.at<double>(1, 3) != 0) {
+			std::cout << "Aborted update because of vertical shift";
 			return; // Indicates vertical rectification which is not supported for now
 		}
 		double shiftedTo = rP2.at<double>(0, 3) / rP2.at<double>(0, 0);
@@ -115,7 +115,7 @@ public:
 		cv::waitKey(0);
 		*/
 
-		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1);
+		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1, out);
 
 		csc.printAndReset("Add3d");
 	}
@@ -125,7 +125,7 @@ private:
 		return (currentWriteLine + i) % bufferLines;
 	}
 
-	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined) {
+	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined, std::vector<ScenePoint> &out) {
 		assert(disparity.type() == CV_16S);
 
 		cv::Mat Rrectify4x4 = cv::Mat::zeros(4, 4, CV_64F);
@@ -216,7 +216,7 @@ private:
 						n = n / cv::norm(n);
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
 
-						scene.addPoint(p, n, 1.0);
+						out.emplace_back(p, n, 1.0f);
 					}
 				}
 			}
@@ -224,5 +224,4 @@ private:
 	}
 
 	std::list<View> sliding_window;
-	Scene<Levels, NodeStorage> &scene;
 };

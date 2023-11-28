@@ -56,25 +56,44 @@ int main()
     }
 
     Scene<3, bool> gm(0.03, std::vector<int>({10, 20, 2}));
-    Reconstruct<3, bool> g(gm);
+    Reconstruct g;
 
 
     //for (int i = 0; i < views.size(); i++) {
+    std::list<std::vector<ScenePoint>> tmp;
+    size_t unfiltered_points = 0;
+    const int fromhere = 2;
     for (int i = 0; i < views.size(); i++) {
         views[i].extrinsics = View::oglExtrinsicsToCVExtrinsics(views[i].extrinsics);
         views[i].intrinsics = View::oglIntrinsicsToCVIntrinsics(views[i].intrinsics, views[i].image.size());
         g.add_image(views[i]);
-        g.update3d();
+
+        tmp.push_back(std::vector<ScenePoint>());
+        g.update3d(tmp.back());
+        std::cout << "Sizes " << tmp.back().size() << std::endl;
+        unfiltered_points += tmp.back().size();
+        for (const ScenePoint &u : tmp.back()) {
+            gm.addPoint(u.position, u.normal, u.confidence);
+        }
+        while (unfiltered_points > 500000) {
+            std::cout << gm.filterOutliers<1>(0, 200, tmp.front()) << std::endl;
+            std::cout << gm.filterOutliers<2>(1, 40, tmp.front()) << std::endl;
+            unfiltered_points -= tmp.front().size();
+            tmp.pop_front();
+        }
+    }
+
+    for (auto w : tmp) {
+        std::cout << gm.filterOutliers<1>(0, 200, w) << std::endl;
+        std::cout << gm.filterOutliers<2>(1, 40, w) << std::endl;
     }
 
     //cv::imshow("asdjh", gm.directRender(views[5]));
     //cv::waitKey(0);
     
 
-    //gm.filterConfidence();
-    std::cout << gm.filterOutliers<1>(0, 200) << std::endl;
-    std::cout << gm.filterOutliers<2>(1, 50) << std::endl;
-    //std::cout << gm.filterOutliers<1>(1, 25) << std::endl;
+    //std::cout << gm.filterOutliers<1>(0, 200) << std::endl;
+    //std::cout << gm.filterOutliers<2>(1, 50) << std::endl;
     gm.export_xyz("h.xyz");
 
     //gm.import_xyz("h.xyz");

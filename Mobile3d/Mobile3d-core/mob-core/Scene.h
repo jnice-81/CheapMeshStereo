@@ -3,6 +3,8 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <fstream>
+#include <unordered_set>
+#include <unordered_map>
 #include "helpers.h"
 #include "View.h"
 
@@ -20,6 +22,18 @@ public:
 
 class ScenePoint {
 public:
+	ScenePoint(cv::Vec3f position, cv::Vec3f normal, float confidence = 0)
+	{
+		this->position = position;
+		this->normal = normal;
+		this->confidence = confidence;
+	}
+
+	ScenePoint() {
+
+	}
+
+	cv::Vec3f position;
 	cv::Vec3f normal;
 	float confidence = 0;
 };
@@ -420,6 +434,41 @@ public:
 		return toRemove.size();
 	}
 
+	template<int OnLevel>
+	inline std::size_t countNeighborsFor(const cv::Vec3i c, const int l1radius, const int count_max = 0) {
+		size_t hits = 0;
+
+		for (int i = -l1radius; i <= l1radius; i++) {
+			for (int j = -l1radius; j <= l1radius; j++) {
+				for (int k = -l1radius; k <= l1radius; k++) {
+					cv::Vec3f h = this->retrievePoint(cv::Vec3i({ c[0] + i, c[1] + j, c[2] + k }), OnLevel);
+					auto m = this->surfacePoints.template findSuperVoxel<OnLevel>(h);
+
+					if (!m.isEnd()) {
+						size_t gxp = m.template getLevelInfo<OnLevel>().pointCount;
+						hits += gxp;
+						if (count_max != 0 && hits >= count_max) {
+							return hits;
+						}
+					}
+				}
+			}
+		}
+
+		return hits;
+	}
+
+	template<int OnLevel>
+	size_t removeVoxelsInList(const std::vector<cv::Vec3i> &toRemove) {
+		size_t removed = 0;
+
+		for (const auto k : toRemove) {
+			cv::Vec3f p = this->retrievePoint(k, OnLevel);
+			removed += this->surfacePoints.template eraseVoxel<OnLevel>(p);
+		}
+		return removed;
+	}
+
 	
 	template<int OnLevel>
 	std::size_t filterOutliers(const int l1radius, const int minhits) {
@@ -431,39 +480,41 @@ public:
 		auto it = this->surfacePoints.treeIteratorBegin();
 		while (!it.isEnd()) {
 			cv::Vec3i c = it.template getLevelInfo<OnLevel>().voxelPosition;
-			size_t hits = 0;
-
-			for (int i = -l1radius; i <= l1radius; i++) {
-				for (int j = -l1radius; j <= l1radius; j++) {
-					for (int k = -l1radius; k <= l1radius; k++) {
-						cv::Vec3f h = this->retrievePoint(cv::Vec3i({ c[0] + i, c[1] + j, c[2] + k }), OnLevel);
-						auto m = this->surfacePoints.template findSuperVoxel<OnLevel>(h);
-
-						if (!m.isEnd()) {
-							size_t gxp = m.template getLevelInfo<OnLevel>().pointCount;
-							hits += gxp;
-							if (hits >= minhits) {
-								goto END_OF_CHECK;
-							}
-						}
-					}
-				}
-			}
+			size_t hits = countNeighborsFor<OnLevel>(c, l1radius, minhits);
 
 			if (hits < minhits) {
 				toRemove.push_back(c);
 			}
 
-		END_OF_CHECK:
 			it.template jump<OnLevel>();
 		}
 
-		size_t removed = 0;
-		for (auto k : toRemove) {
-			cv::Vec3f p = this->retrievePoint(k, OnLevel);
-			removed += this->surfacePoints.template eraseVoxel<OnLevel>(p);
+		return removeVoxelsInList<OnLevel>(toRemove);
+	}
+
+	template<int OnLevel>
+	std::size_t filterOutliers(const int l1radius, const int minhits, const std::vector<ScenePoint>& check) {
+		std::vector<cv::Vec3i> toRemove;
+
+		std::unordered_set<cv::Vec3i, VecHash> toCheck;
+		for (const ScenePoint p : check) {
+			toCheck.insert(this->retrieveVoxel(p.position, OnLevel));
 		}
-		return removed;
+
+		for (const cv::Vec3i c : toCheck) {
+			cv::Vec3f h = this->retrievePoint(c, OnLevel);
+			auto m = this->surfacePoints.template findSuperVoxel<OnLevel>(h);
+
+			if (!m.isEnd()) {
+				size_t hits = countNeighborsFor<OnLevel>(c, l1radius, minhits);
+
+				if (hits < minhits) {
+					toRemove.push_back(c);
+				}
+			}
+		}
+
+		return removeVoxelsInList<OnLevel>(toRemove);
 	}
 
 	void export_xyz(std::string path) {
