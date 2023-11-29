@@ -94,9 +94,13 @@ public:
 		
 		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(ndisp, 21);
 		blocksearcher->setMinDisparity(mindisp);
-		blocksearcher->setUniquenessRatio(10);
-		blocksearcher->setROI1(validRoiV1);
-		blocksearcher->setROI2(validRoiV2);
+		blocksearcher->setUniquenessRatio(15);
+		// There is a bug with the disparity matching of opencv generating weird structured
+		// patterns in the disparity map.
+		//LOGI("%d, %d, %d, %d", validRoiV1.x, validRoiV1.y, validRoiV1.width, validRoiV1.height);
+		//LOGI("%d, %d, %d, %d", validRoiV2.x, validRoiV2.y, validRoiV2.width, validRoiV2.height);
+		//blocksearcher->setROI1(validRoiV1);
+		//blocksearcher->setROI2(validRoiV2);
 		
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
