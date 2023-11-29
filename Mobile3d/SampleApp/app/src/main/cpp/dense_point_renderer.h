@@ -29,23 +29,6 @@ class dense_point_renderer {
         cv::Vec3f normal;
     };
 
-    /*
-    const char* vertexShaderSource = R"(
-        #version 300 es
-        layout(location = 0) in vec3 aPos;
-        layout(location = 1) in vec3 aInstancePos;
-        layout(location = 2) in vec3 aInstanceNormal;
-
-        uniform mat4 view;
-        uniform mat4 projection;
-
-        void main() {
-            vec4 modelPos = vec4(aPos + aInstancePos, 1.0);
-            gl_Position = projection * view * modelPos;
-        }
-    )";
-    */
-
     const char* vertexShaderSource = R"(#version 300 es
 
         layout(location = 0) in vec3 aPos;
@@ -103,12 +86,15 @@ class dense_point_renderer {
     GLuint mvp_uniform;
 
     InstanceData *data = nullptr;
-    unsigned int lastSize;
+    unsigned int dataSize = 0;
+    unsigned int actualDataSize = 0;
+    std::unordered_map<cv::Vec3i, size_t, VecHash> voxelsToIndex;
+    static const int SceneMaxLevel = 3;
 
 public:
     void InitializeGLContent();
 
-    void draw(Scene<3, bool> &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints);
+    void draw(Scene<SceneMaxLevel, bool> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix);
 
     ~dense_point_renderer();
 };

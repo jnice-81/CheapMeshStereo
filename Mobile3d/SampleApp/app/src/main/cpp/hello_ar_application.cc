@@ -181,7 +181,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       reconstruction_status = std::future_status::ready;
   }
 
-  if (sceneReconstructor.shouldAddImage(extrinsics, 0.1) && reconstruction_status == std::future_status::ready) {
+  if (sceneReconstructor.shouldAddImage(extrinsics, 0.1)
+        && reconstruction_status == std::future_status::ready && renderable_output == 0) {
       __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
 
       // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
@@ -224,14 +225,17 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
               collectedScene.addPoint(a.position, a.normal, a.confidence);
           }
 
+          auto it = reconstructorOutput.begin();
+          /*
           while (unfiltered_points > 500000) {
-              collectedScene.filterOutliers<1>(0, 200, reconstructorOutput.front());
-              collectedScene.filterOutliers<2>(1, 40, reconstructorOutput.front());
-              unfiltered_points -= reconstructorOutput.front().size();
-              reconstructorOutput.pop_front();
-          }
-          //collectedScene.filterOutliers<1>(0, 200);
-          //collectedScene.filterOutliers<2>(1, 50);
+              LOGI("Running filter %d", unfiltered_points);
+              collectedScene.filterOutliers<1>(0, 200, *it);
+              collectedScene.filterOutliers<2>(1, 40, *it);
+              unfiltered_points -= it->size();
+
+              it++;
+          }*/
+          renderable_output += 1;
       });
 
         /*
@@ -245,10 +249,21 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
           delete[] old;
           oldimages.pop_front();
       }
-      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Done adding %d", collectedScene.getSceneData().getPointCount());
   }
 
-    densePointRenderer_.draw(collectedScene, projection_mat * view_mat, reconstruction_status == std::future_status::ready);
+  int updates = 0;
+  if (reconstruction_status == std::future_status::ready) {
+      updates = renderable_output;
+  }
+  // reconstructorOutput and collectedScene are only accessed if updates > 0
+  densePointRenderer_.draw(collectedScene, reconstructorOutput, updates, projection_mat * view_mat);
+  if (reconstruction_status == std::future_status::ready) {
+      while (renderable_output > 0) {
+          reconstructorOutput.pop_front();
+          renderable_output -= 1;
+      }
+  }
+
 
   // Update and render point cloud.
   ArPointCloud* ar_point_cloud = nullptr;
@@ -263,6 +278,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 void HelloArApplication::ComputeSurface() {
     //collectedScene.filterConfidence(4);
     //collectedScene.filterOutliers(10, 200);
+    collectedScene.filterOutliers<1>(0, 200);
+    collectedScene.filterOutliers<2>(1, 40);
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
     //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(collectedScene, "/data/data/com.google.ar.core.examples.c.helloar/out.ply");
     LOGI("Done");

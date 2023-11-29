@@ -119,7 +119,7 @@ protected:
 		}
 
 		template<int SelectLevel>
-		TreeIterator<SelectLevel, MaxLevel> findSuperVoxel(const cv::Vec3f p) {
+		TreeIterator<SelectLevel, MaxLevel> findVoxel(const cv::Vec3f p) {
 			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
 			auto g = this->find(pI);
 			if constexpr (SelectLevel == CurrentLevel) {
@@ -132,7 +132,7 @@ protected:
 			}
 			else {
 				if (g != this->end()) {
-					return g->second.template findSuperVoxel<SelectLevel>(p);
+					return g->second.template findVoxel<SelectLevel>(p);
 				}
 				else {
 					return TreeIterator<SelectLevel, MaxLevel>();
@@ -160,6 +160,18 @@ protected:
 			return this->size();
 		}
 
+		template<int SelectLevel>
+		TreeIterator<MaxLevel, MaxLevel> findVoxel(const cv::Vec3f p) {
+			cv::Vec3i pI = parent->retrieveVoxel(p, MaxLevel);
+			auto g = this->find(pI);
+			if (g != this->end()) {
+				return TreeIterator<MaxLevel, MaxLevel>(g, this->end());
+			}
+			else {
+				return TreeIterator<MaxLevel, MaxLevel>();
+			}
+		}
+
 		bool insert_or_update(cv::Vec3f p, const cv::Vec3f normal, const float confidence) {
 			cv::Vec3i pI = parent->retrieveVoxel(p, MaxLevel);
 			auto it = this->find(pI);
@@ -167,12 +179,14 @@ protected:
 				float oldconfidence = it->second.confidence;
 				it->second.confidence = oldconfidence + confidence;
 				it->second.normal = (oldconfidence * it->second.normal + confidence * normal) / it->second.confidence;
+				it->second.position = (oldconfidence * it->second.position + confidence * p) / it->second.confidence;
 				return false;
 			}
 			else {
 				ScenePoint q;
 				q.normal = normal;
 				q.confidence = confidence;
+				q.position = p;
 				this->insert(std::make_pair(pI, q));
 				return true;
 			}
@@ -442,7 +456,7 @@ public:
 			for (int j = -l1radius; j <= l1radius; j++) {
 				for (int k = -l1radius; k <= l1radius; k++) {
 					cv::Vec3f h = this->retrievePoint(cv::Vec3i({ c[0] + i, c[1] + j, c[2] + k }), OnLevel);
-					auto m = this->surfacePoints.template findSuperVoxel<OnLevel>(h);
+					auto m = this->surfacePoints.template findVoxel<OnLevel>(h);
 
 					if (!m.isEnd()) {
 						size_t gxp = m.template getLevelInfo<OnLevel>().pointCount;
@@ -462,7 +476,7 @@ public:
 	size_t removeVoxelsInList(const std::vector<cv::Vec3i> &toRemove) {
 		size_t removed = 0;
 
-		for (const auto k : toRemove) {
+		for (const auto &k : toRemove) {
 			cv::Vec3f p = this->retrievePoint(k, OnLevel);
 			removed += this->surfacePoints.template eraseVoxel<OnLevel>(p);
 		}
@@ -497,13 +511,13 @@ public:
 		std::vector<cv::Vec3i> toRemove;
 
 		std::unordered_set<cv::Vec3i, VecHash> toCheck;
-		for (const ScenePoint p : check) {
+		for (const ScenePoint &p : check) {
 			toCheck.insert(this->retrieveVoxel(p.position, OnLevel));
 		}
 
-		for (const cv::Vec3i c : toCheck) {
+		for (const cv::Vec3i &c : toCheck) {
 			cv::Vec3f h = this->retrievePoint(c, OnLevel);
-			auto m = this->surfacePoints.template findSuperVoxel<OnLevel>(h);
+			auto m = this->surfacePoints.template findVoxel<OnLevel>(h);
 
 			if (!m.isEnd()) {
 				size_t hits = countNeighborsFor<OnLevel>(c, l1radius, minhits);

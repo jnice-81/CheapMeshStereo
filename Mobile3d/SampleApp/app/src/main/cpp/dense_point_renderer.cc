@@ -67,7 +67,7 @@ void dense_point_renderer::InitializeGLContent() {
     hello_ar::util::CheckGlError("Something went wrong during initialization of dense point renderer");
 }
 
-void dense_point_renderer::draw(Scene<3, bool> &scene, const glm::mat4& mvp_matrix, bool canUpdatePoints) {
+void dense_point_renderer::draw(Scene<SceneMaxLevel, bool> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix) {
     CHECK(shaderProgram);
 
     glUseProgram(shaderProgram);
@@ -80,27 +80,54 @@ void dense_point_renderer::draw(Scene<3, bool> &scene, const glm::mat4& mvp_matr
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
-    if (canUpdatePoints) {
-        auto points = scene.getSceneData();
-        size_t pointCount = points.getPointCount();
-        if (pointCount != lastSize) {
-            if (data != nullptr) {
-                delete[] data;
+    if (use_updates != 0) {
+        std::unordered_set<cv::Vec3i, VecHash> updatedVoxels;
+        auto it = updates.begin();
+        for(int i = 0; i < use_updates; i++) {
+            for(auto it2 = it->begin(); it2 != it->end(); it2++) {
+                updatedVoxels.insert(scene.retrieveVoxel(it2->position, SceneMaxLevel));
             }
-
-            data = new InstanceData[pointCount];
-            int instanceId = 0;
-            for (auto it = points.treeIteratorBegin(); !it.isEnd(); it++) {
-                data[instanceId].position = scene.voxelToPoint(it->first);
-                data[instanceId].normal = it->second.normal;
-                instanceId++;
-            }
-
-            glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(InstanceData) * pointCount, data, GL_STATIC_DRAW);
-
-            lastSize = pointCount;
+            it++;
         }
+
+        auto &surfacePoints = scene.getSceneData();
+        int qclan = 0;
+        for (const auto &voxel : updatedVoxels) {
+
+            auto it = surfacePoints.findVoxel<SceneMaxLevel>(scene.retrievePoint(voxel, SceneMaxLevel));
+            if (it.isEnd()) {
+                qclan++;
+                continue;
+            }
+
+            auto g = voxelsToIndex.find(voxel);
+            size_t index;
+            if (g == voxelsToIndex.end()) {
+                index = actualDataSize;
+                actualDataSize++;
+                if (actualDataSize > dataSize) {
+                    size_t newsize = dataSize * 2 + 100000;
+                    InstanceData *newdata = new InstanceData[newsize];
+                    std::copy(data, &data[dataSize], newdata);
+                    dataSize = newsize;
+                    if (data != nullptr) {
+                        delete[] data;
+                    }
+                    data = newdata;
+                }
+                voxelsToIndex.insert(std::make_pair(voxel, index));
+            }
+            else {
+                index = g->second;
+            }
+
+            const ScenePoint& current = it->second;
+            data[index].position = current.position;
+            data[index].normal = current.normal;
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(InstanceData) * actualDataSize, data, GL_STATIC_DRAW);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
@@ -115,7 +142,7 @@ void dense_point_renderer::draw(Scene<3, bool> &scene, const glm::mat4& mvp_matr
 
     glUniformMatrix4fv(mvp_uniform, 1, GL_FALSE, glm::value_ptr(mvp_matrix));
 
-    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, lastSize);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, actualDataSize);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);

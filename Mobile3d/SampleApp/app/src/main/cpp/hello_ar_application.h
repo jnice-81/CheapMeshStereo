@@ -27,6 +27,7 @@
 #include <string>
 #include <thread>
 #include <future>
+#include <atomic>
 
 #include "arcore_c_api.h"
 #include "background_renderer.h"
@@ -104,6 +105,7 @@ class HelloArApplication {
   Reconstruct sceneReconstructor;
   std::list<std::vector<ScenePoint>> reconstructorOutput;
   size_t unfiltered_points = 0;
+  int renderable_output = 0;
   std::list<GLubyte*> oldimages;
   std::future<void> reconstructionFuture;
 
