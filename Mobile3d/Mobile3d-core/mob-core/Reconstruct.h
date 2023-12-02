@@ -91,21 +91,49 @@ public:
 		else {
 			mindisp = 0;
 		}
-		
-		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(ndisp, 21);
+
+
+		/*
+		cv::Ptr<cv::StereoSGBM> blocksearcher = cv::StereoSGBM::create(
+				mindisp,
+				ndisp,
+				21,
+				8*21*21,
+				32 * 21*21,
+				1,
+				0,
+				50);
+		*/
+
+		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(
+				ndisp,
+				21);
+		blocksearcher->setUniquenessRatio(30);
 		blocksearcher->setMinDisparity(mindisp);
-		blocksearcher->setUniquenessRatio(15);
 		// There is a bug with the disparity matching of opencv generating weird structured
 		// patterns in the disparity map.
-		//LOGI("%d, %d, %d, %d", validRoiV1.x, validRoiV1.y, validRoiV1.width, validRoiV1.height);
-		//LOGI("%d, %d, %d, %d", validRoiV2.x, validRoiV2.y, validRoiV2.width, validRoiV2.height);
 		//blocksearcher->setROI1(validRoiV1);
 		//blocksearcher->setROI2(validRoiV2);
 		
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
+		int x = std::max(validRoiV1.x, validRoiV2.x);
+		int y = std::max(validRoiV1.y, validRoiV2.y);
+		int width = std::min(validRoiV1.x + validRoiV1.width, validRoiV2.x + validRoiV2.width) - x;
+		int height = std::min(validRoiV1.y + validRoiV1.height, validRoiV2.y + validRoiV2.height) - y;
+		//LOGI("%d %d %d %d", x, y, width, height);
+		cv::Rect disparityRoi = cv::Rect(x, y, width, height);
+		if (width <= 30 || height <= 30) {
+			return;
+		}
+
+		/*
+		cv::imwrite("v1.jpg", rectified_image1(disparityRoi));
+		cv::imwrite("v2.jpg", rectified_image2(disparityRoi));
+		*/
+
 		cv::Mat disparity;
-		blocksearcher->compute(rectified_image1, rectified_image2, disparity);
+		blocksearcher->compute(rectified_image1(disparityRoi), rectified_image2(disparityRoi), disparity);
 		disparity /= 16;
 
 		csc.printAndReset("Disparity");
@@ -119,7 +147,7 @@ public:
 		cv::waitKey(0);
 		*/
 
-		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1, out);
+		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1, out, disparityRoi.x, disparityRoi.y);
 
 		csc.printAndReset("Add3d");
 	}
@@ -129,7 +157,8 @@ private:
 		return (currentWriteLine + i) % bufferLines;
 	}
 
-	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined, std::vector<ScenePoint> &out) {
+	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined, std::vector<ScenePoint> &out,
+					  int addX, int addY) {
 		assert(disparity.type() == CV_16S);
 
 		cv::Mat Rrectify4x4 = cv::Mat::zeros(4, 4, CV_64F);
@@ -157,7 +186,7 @@ private:
 			for (int x = 0; x < disparity.cols; x++) {
 				short disp = rptr[x];
 				if (disp != 0 && disp != undefined) {
-					cv::Vec4d cam = Pback * cv::Vec4d((double)x, (double)y, (double)disp, 1.0);
+					cv::Vec4d cam = Pback * cv::Vec4d((double)(x + addX), (double)(y + addY), (double)disp, 1.0);
 					cv::Vec3d pos = cv::Vec3d(cam.val) / cam[3];
 
 					normalBufferPoints[currentWriteLine][x] = pos;
