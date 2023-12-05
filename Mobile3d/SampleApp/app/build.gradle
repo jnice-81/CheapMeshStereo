@@ -45,7 +45,8 @@ android {
                         "-DGLM_INCLUDE=${project.rootDir}/../androidlib/glm",
                         "-DOPENCV_INCLUDE=${project.rootDir}/../androidlib/OpenCV-android-sdk-4.8.0/sdk/native",
                         "-DMOBILE3D-CORE-INCLUDE=${project.rootDir}/../Mobile3d-core/mob-core",
-                        "-DPOISSON-INCLUDE=${project.rootDir}/../poissonlib/PoissonRecon/Src"
+                        "-DPOISSON-INCLUDE=${project.rootDir}/../poissonlib/PoissonRecon/Src",
+                        "-DCMAKE-BUILD-TYPE=Release"
             }
         }
         ndk {

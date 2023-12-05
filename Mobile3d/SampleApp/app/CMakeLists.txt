@@ -21,6 +21,14 @@
 cmake_minimum_required(VERSION 3.4.1)
 project("MOBILE3D-SAMPLE")
 
+if(CMAKE-BUILD-TYPE STREQUAL "Release")
+    message("Configuring Release build")
+    add_compile_options(-O3)  # Example: Enable high level of optimization
+else()
+    message("Configuring Debug build")
+    add_compile_options(-g)   # Example: Enable debugging information
+endif()
+
 # Import Opencv
 add_library( lib_opencv SHARED IMPORTED )
 set_target_properties(lib_opencv PROPERTIES IMPORTED_LOCATION

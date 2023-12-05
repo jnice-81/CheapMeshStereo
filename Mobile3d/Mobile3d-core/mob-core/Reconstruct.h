@@ -8,7 +8,6 @@
 #include <chrono>
 
 #include "helpers.h"
-//#include "PyramidalBM.h"
 #include "View.h"
 #include "Scene.h"
 //#include "PoissonSurfaceReconstruct.h"
@@ -40,7 +39,7 @@ public:
 		}
 	}
 
-	void update3d(std::vector<ScenePoint> &out) {
+	void update3d(std::vector<ScenePoint> &out, int dbgidx = 0) {
         if (sliding_window.size() < 2) {
             return;
         }
@@ -78,11 +77,6 @@ public:
 
 		csc.printAndReset("Rectify");
 
-		/*
-		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v1.jpg", rectified_image1);
-		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/v2.jpg", rectified_image2);
-		*/
-
 		int ndisp = 15 * 16;
 		int mindisp;
 		if (shiftedTo > 0) {
@@ -92,28 +86,23 @@ public:
 			mindisp = 0;
 		}
 
-
 		/*
 		cv::Ptr<cv::StereoSGBM> blocksearcher = cv::StereoSGBM::create(
 				mindisp,
 				ndisp,
-				21,
-				8*21*21,
-				32 * 21*21,
+				11,
+				8*11*11,
+				32 * 11*11,
 				1,
 				0,
-				50);
+				20);
 		*/
 
 		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(
 				ndisp,
-				21);
-		blocksearcher->setUniquenessRatio(30);
+				11);
+		blocksearcher->setUniquenessRatio(20);
 		blocksearcher->setMinDisparity(mindisp);
-		// There is a bug with the disparity matching of opencv generating weird structured
-		// patterns in the disparity map.
-		//blocksearcher->setROI1(validRoiV1);
-		//blocksearcher->setROI2(validRoiV2);
 		
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
@@ -127,10 +116,10 @@ public:
 			return;
 		}
 
-		/*
-		cv::imwrite("v1.jpg", rectified_image1(disparityRoi));
-		cv::imwrite("v2.jpg", rectified_image2(disparityRoi));
-		*/
+#ifdef DEBUG_ANDROID
+		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vl" + std::to_string(dbgidx) + ".jpg", rectified_image1(disparityRoi));
+		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vr" + std::to_string(dbgidx) + ".jpg", rectified_image2(disparityRoi));
+#endif
 
 		cv::Mat disparity;
 		blocksearcher->compute(rectified_image1(disparityRoi), rectified_image2(disparityRoi), disparity);
@@ -138,14 +127,12 @@ public:
 
 		csc.printAndReset("Disparity");
 
-		/*
-		cv::normalize(disparity, disparity, 0, 255, cv::NORM_MINMAX);
-		disparity.convertTo(disparity, CV_8U);
-		cv::imshow("v1", rectified_image1);
-		cv::imshow("v2", rectified_image2);
-		cv::imshow("disp", disparity);
-		cv::waitKey(0);
-		*/
+#ifdef DEBUG_ANDROID
+		cv::Mat exportDisp;
+		cv::normalize(disparity, exportDisp, 0, 255, cv::NORM_MINMAX);
+		disparity.convertTo(exportDisp, CV_8U);
+		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vdisp" + std::to_string(dbgidx) + ".jpg", exportDisp);
+#endif
 
 		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1, out, disparityRoi.x, disparityRoi.y);
 

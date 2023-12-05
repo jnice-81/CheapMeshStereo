@@ -28,6 +28,7 @@
 #include <thread>
 #include <future>
 #include <atomic>
+#include <chrono>
 
 #include "arcore_c_api.h"
 #include "background_renderer.h"
@@ -39,6 +40,7 @@
 #include "texture.h"
 #include "util.h"
 
+//#define DEBUG_ANDROID
 #include <Reconstruct.h>
 #include <dense_point_renderer.h>
 
@@ -108,6 +110,8 @@ class HelloArApplication {
   int renderable_output = 0;
   std::list<GLubyte*> oldimages;
   std::future<void> reconstructionFuture;
+  int dbgidx = 0;
+  std::fstream dbgexport;
 
   void ConfigureSession();
 };
