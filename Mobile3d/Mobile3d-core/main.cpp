@@ -52,7 +52,7 @@ int main()
         for (const auto& k : obj["pointIDs"]) {
             keyPointIds.insert(k.get<int>());
         }*/
-        if (slideWindow.shouldAddImage(extrinsics, 0.3, 0.2)) {
+        if (slideWindow.shouldAddImage(extrinsics, 0.5, 0.2)) {
             std::string imgpath = projectfolder + "/images/" + name + ".jpg";
             std::cout << imgpath << std::endl;
             cv::Mat image = cv::imread(imgpath);
@@ -62,7 +62,7 @@ int main()
             
             if (slideWindow.size() >= 5) {
                 std::vector<ScenePoint> v;
-                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-1), v, 1, 10, 0.03);
+                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-1), v, 1, 10, 0.1);
                 for (const auto& s : v) {
                     gm.addPoint(s.position, s.normal, s.confidence);
                 }
@@ -70,8 +70,8 @@ int main()
         }
     }
 
-    gm.filterOutliers<0>(0, 10000);
-    gm.filterOutliers<1>(2, 20000);
+    //gm.filterOutliers<0>(0, 10000);
+    //gm.filterOutliers<1>(2, 20000);
     gm.export_xyz("h.xyz");
 
     return 0;

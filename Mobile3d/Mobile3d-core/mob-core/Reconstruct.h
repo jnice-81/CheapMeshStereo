@@ -20,6 +20,10 @@ public:
 		return f * T / depth;
 	}
 
+	static inline double getDepthForDisparity(const double disparity, const double f, const double T) {
+		return f * T / disparity;
+	}
+
 	static inline double getMinDisparityForPrecision(const double f, const double T, const double precision) {
 		/*
 		depth = f * T / disparity
@@ -91,19 +95,19 @@ public:
 			return;
 		}
 
-		int ndisp = maxDispDepth - minDispPrec;
+		int ndisp = maxDispDepth;
 		int mindisp;
 		if (shift > 0) {
 			mindisp = -ndisp;
 		}
 		else {
-			mindisp = minDispPrec;
+			mindisp = 0;
 		}
 
 		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(
 				ndisp,
 				11);
-		blocksearcher->setUniquenessRatio(20);
+		blocksearcher->setUniquenessRatio(30);
 		blocksearcher->setMinDisparity(mindisp);
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
@@ -123,7 +127,16 @@ public:
 		cv::imshow("l", rectified_image1);
 		cv::imshow("r", rectified_image2);
 		cv::Mat exportDisp;
-		cv::normalize(disparity, exportDisp, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+		disparity.convertTo(exportDisp, CV_32F);
+		for (int i = 0; i < exportDisp.rows; i++) {
+			for (int j = 0; j < exportDisp.cols; j++) {
+				if (exportDisp.at<float>(i, j) < minDispPrec) {
+					continue;
+				}
+				exportDisp.at<float>(i, j) = getDepthForDisparity(std::abs(exportDisp.at<float>(i, j)), f, shift);
+			}
+		}
+		cv::normalize(exportDisp, exportDisp, 0, 255, cv::NORM_MINMAX, CV_8U);
 		cv::imshow("disp", exportDisp);
 		cv::waitKey(0);
 		*/
@@ -135,7 +148,7 @@ public:
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vdisp" + std::to_string(dbgidx) + ".jpg", exportDisp);
 #endif
 
-		addDisparity(disparity, Q, rR1, v1.extrinsics, mindisp - 1, out, disparityRoi.x, disparityRoi.y);
+		addDisparity(disparity, Q, rR1, v1.extrinsics, minDispPrec, mindisp-1, out, disparityRoi.x, disparityRoi.y);
 
 		csc.printAndReset("Add3d");
 	}
@@ -145,8 +158,8 @@ private:
 		return (currentWriteLine + i) % bufferLines;
 	}
 
-	static void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined, std::vector<ScenePoint> &out,
-					  int addX, int addY) {
+	static void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, 
+		const int minDisp, const int undefined, std::vector<ScenePoint> &out, int addX, int addY) {
 		assert(disparity.type() == CV_16S);
 
 		cv::Mat Rrectify4x4 = cv::Mat::zeros(4, 4, CV_64F);
@@ -173,7 +186,7 @@ private:
 			const short* rptr = disparity.ptr<short>(y);
 			for (int x = 0; x < disparity.cols; x++) {
 				short disp = rptr[x];
-				if (disp != 0 && disp != undefined) {
+				if (disp != undefined && std::abs(disp) >= minDisp) {
 					cv::Vec4d cam = Pback * cv::Vec4d((double)(x + addX), (double)(y + addY), (double)disp, 1.0);
 					cv::Vec3d pos = cv::Vec3d(cam.val) / cam[3];
 
