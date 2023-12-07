@@ -328,7 +328,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 
         if (!dbgexport.is_open()) {
             dbgexport.open("/data/data/com.google.ar.core.examples.c.helloar/ARCoreData.json", std::ios_base::out);
-            dbgexport << "{\n \"ARCoreData:\": [";
+            dbgexport << "{\n \"ARCoreData\": [";
         }
 
         ArCamera* ar_camera;
@@ -383,11 +383,11 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 
         cv::Mat intrinsics = glm4x4ToCvMat(projection_mat);
 
-        auto imname = std::to_string(dbgidx) + ".jpg";
-        cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/" + imname, image);
+        auto imname = std::to_string(dbgidx);
+        cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/" + imname + ".jpg", image);
         dbgexport << ",{\"name\": " << "\"" << imname << "\"" << ",\n"
-            << "\"projection\": [" << matToStringExport(extrinsics) << "],\n"
-            << "\"intrinsics\": [" << matToStringExport(intrinsics) << "]\n}\n";
+            << "\"projection\": [" << matToStringExport(intrinsics) << "],\n"
+            << "\"viewmatrix\": [" << matToStringExport(extrinsics) << "]\n}\n";
 
         dbgidx++;
     }

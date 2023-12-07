@@ -1,6 +1,5 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
 #include <fstream>
 #include <iostream>
 #include <unordered_set>
@@ -14,38 +13,24 @@
 
 class Reconstruct {
 public:
-	Reconstruct() {}
-
-	bool shouldAddImage(const cv::Mat &newExtrinsics, float minNorm) {
-		const cv::Rect roiR = cv::Rect(0, 0, 3, 3);
-		const cv::Rect roiT = cv::Rect(3, 0, 1, 3);
-
-		if (sliding_window.size() == 0) {
-			return true;
-		}
-
-		View oldView = sliding_window.back();
-		cv::Mat R = newExtrinsics(roiR) * oldView.extrinsics(roiR).t();
-		cv::Mat T = newExtrinsics(roiT) - R * oldView.extrinsics(roiT);
-
-		return cv::norm(T) >= minNorm;
+	static inline double getDisparityForDepth(const double depth, const double f, const double T) {
+		/*
+		depth = f * T / disparity
+		*/
+		return f * T / depth;
 	}
 
-	void add_image(View new_view) {
-		sliding_window.push_back(new_view);
-
-		if (sliding_window.size() > 2) {
-			sliding_window.pop_front();
-		}
+	static inline double getMinDisparityForPrecision(const double f, const double T, const double precision) {
+		/*
+		depth = f * T / disparity
+		g >= f * T / d - f * T / (d+1) = (f * T * (d + 1)) / (d * (d+1)) - (f * T * d) / (d * (d+1)) = (f * T) / (d * (d + 1)) =>
+		g * d^2 + g * d - f * T >= 0
+		*/
+		return (-precision + std::sqrt(precision * precision + 4 * precision * f * T)) / (2 * precision);
 	}
 
-	void update3d(std::vector<ScenePoint> &out, int dbgidx = 0) {
-        if (sliding_window.size() < 2) {
-            return;
-        }
-
-		View v1 = sliding_window.front();
-		View v2 = sliding_window.back();
+	static void compute3d(const View &v1, const View &v2, std::vector<ScenePoint> &out,
+		double minDepth, double maxDepth, double precision, size_t maxDisp = 16 * 15) {
 
 		MsClock csc;
 
@@ -61,11 +46,23 @@ public:
 		cv::stereoRectify(v1.intrinsics, cv::Mat(), v2.intrinsics, cv::Mat(), imgsize,
 			R, T, rR1, rR2, rP1, rP2, Q, cv::CALIB_ZERO_DISPARITY, -1, cv::Size(), &validRoiV1, &validRoiV2);
 
+		int x = std::max(validRoiV1.x, validRoiV2.x);
+		int y = std::max(validRoiV1.y, validRoiV2.y);
+		int width = std::min(validRoiV1.x + validRoiV1.width, validRoiV2.x + validRoiV2.width) - x;
+		int height = std::min(validRoiV1.y + validRoiV1.height, validRoiV2.y + validRoiV2.height) - y;
+		cv::Rect disparityRoi = cv::Rect(x, y, width, height);
+
+		if (width <= 30 || height <= 30) {
+			std::cout << "Aborted because of no usable rectified area";
+			return;
+		}
+
 		if (rP2.at<double>(1, 3) != 0) {
 			std::cout << "Aborted update because of vertical shift";
 			return; // Indicates vertical rectification which is not supported for now
 		}
-		double shiftedTo = rP2.at<double>(0, 3) / rP2.at<double>(0, 0);
+		double shift = -1 / Q.at<double>(3, 2);
+		double f = Q.at<double>(2, 3);
 
 		cv::Mat map1x, map1y, map2x, map2y;
 		cv::initUndistortRectifyMap(v1.intrinsics, cv::Mat(), rR1, rP1, imgsize, CV_16SC2, map1x, map1y);
@@ -75,46 +72,41 @@ public:
 		cv::remap(v1.image, rectified_image1, map1x, map1y, cv::INTER_LINEAR);
 		cv::remap(v2.image, rectified_image2, map2x, map2y, cv::INTER_LINEAR);
 
+		rectified_image1 = rectified_image1(disparityRoi);
+		rectified_image2 = rectified_image2(disparityRoi);
+
 		csc.printAndReset("Rectify");
 
-		int ndisp = 15 * 16;
-		int mindisp;
-		if (shiftedTo > 0) {
-			mindisp = -15 * 16;
+		int maxDispDepth = (int)getDisparityForDepth(minDepth, f, std::abs(shift));
+		int minDispPrec = (int)getMinDisparityForPrecision(f, std::abs(shift), precision);
+		maxDispDepth -= maxDispDepth % 16;	// TODO: Throw this stuff out
+		minDispPrec += 16 - minDispPrec % 16;	// and this
+		if (maxDispDepth > maxDisp) {
+			maxDispDepth = maxDisp;
 		}
-		else {
-			mindisp = 0;
+		std::cout << minDispPrec << " " << maxDispDepth << " " << shift << std::endl;
+
+		if (minDispPrec >= maxDispDepth) {
+			std::cout << "No valid disparity for the given precision and depth. Aborted";
+			return;
 		}
 
-		/*
-		cv::Ptr<cv::StereoSGBM> blocksearcher = cv::StereoSGBM::create(
-				mindisp,
-				ndisp,
-				11,
-				8*11*11,
-				32 * 11*11,
-				1,
-				0,
-				20);
-		*/
+		int ndisp = maxDispDepth - minDispPrec;
+		int mindisp;
+		if (shift > 0) {
+			mindisp = -ndisp;
+		}
+		else {
+			mindisp = minDispPrec;
+		}
 
 		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(
 				ndisp,
 				11);
 		blocksearcher->setUniquenessRatio(20);
 		blocksearcher->setMinDisparity(mindisp);
-		
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
-		int x = std::max(validRoiV1.x, validRoiV2.x);
-		int y = std::max(validRoiV1.y, validRoiV2.y);
-		int width = std::min(validRoiV1.x + validRoiV1.width, validRoiV2.x + validRoiV2.width) - x;
-		int height = std::min(validRoiV1.y + validRoiV1.height, validRoiV2.y + validRoiV2.height) - y;
-		//LOGI("%d %d %d %d", x, y, width, height);
-		cv::Rect disparityRoi = cv::Rect(x, y, width, height);
-		if (width <= 30 || height <= 30) {
-			return;
-		}
 
 #ifdef DEBUG_ANDROID
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vl" + std::to_string(dbgidx) + ".jpg", rectified_image1(disparityRoi));
@@ -122,10 +114,19 @@ public:
 #endif
 
 		cv::Mat disparity;
-		blocksearcher->compute(rectified_image1(disparityRoi), rectified_image2(disparityRoi), disparity);
+		blocksearcher->compute(rectified_image1, rectified_image2, disparity);
 		disparity /= 16;
 
 		csc.printAndReset("Disparity");
+
+		/*
+		cv::imshow("l", rectified_image1);
+		cv::imshow("r", rectified_image2);
+		cv::Mat exportDisp;
+		cv::normalize(disparity, exportDisp, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+		cv::imshow("disp", exportDisp);
+		cv::waitKey(0);
+		*/
 
 #ifdef DEBUG_ANDROID
 		cv::Mat exportDisp;
@@ -140,11 +141,11 @@ public:
 	}
 
 private:
-	inline int virtualToRealNormalBufferIdx(int i, int currentWriteLine, int bufferLines) {
+	static inline int virtualToRealNormalBufferIdx(int i, int currentWriteLine, int bufferLines) {
 		return (currentWriteLine + i) % bufferLines;
 	}
 
-	void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined, std::vector<ScenePoint> &out,
+	static void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, const int undefined, std::vector<ScenePoint> &out,
 					  int addX, int addY) {
 		assert(disparity.type() == CV_16S);
 
@@ -242,6 +243,4 @@ private:
 			}
 		}
 	}
-
-	std::list<View> sliding_window;
 };
