@@ -42,9 +42,10 @@ int main()
     std::ifstream arcorefile(projectfolder + "/ARCoreData.json");
     auto arcore = jfile::parse(arcorefile);
 
-    Scene<3, bool> gm(0.03, std::vector<int>({ 10, 20, 2 }));
-    SlidingWindow slideWindow(5);
+    Scene<3, bool> gm(0.05, std::vector<int>({ 10, 20, 2 }));
+    SlidingWindow slideWindow(10);
 
+    int nimg = 0;
     for (const auto& obj : arcore["ARCoreData"]) {
         std::string name = obj["name"];
         cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(load_matrix_from_json(obj["viewmatrix"]));
@@ -52,7 +53,8 @@ int main()
         for (const auto& k : obj["pointIDs"]) {
             keyPointIds.insert(k.get<int>());
         }*/
-        if (slideWindow.shouldAddImage(extrinsics, 0.5, 0.2)) {
+        nimg++;
+        if (slideWindow.shouldAddImage(extrinsics, 0.1, 0.1)) {
             std::string imgpath = projectfolder + "/images/" + name + ".jpg";
             std::cout << imgpath << std::endl;
             cv::Mat image = cv::imread(imgpath);
@@ -60,9 +62,11 @@ int main()
             View v(image, intrinsics, extrinsics);
             slideWindow.add_image(v);
             
-            if (slideWindow.size() >= 5) {
+            if (slideWindow.size() >= 10) {
                 std::vector<ScenePoint> v;
-                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-1), v, 1, 10, 0.1);
+                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-1), v, 1, 10, 0.05);
+                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-4), v, 1, 10, 0.05);
+                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-9), v, 1, 10, 0.05);
                 for (const auto& s : v) {
                     gm.addPoint(s.position, s.normal, s.confidence);
                 }
@@ -70,8 +74,8 @@ int main()
         }
     }
 
-    //gm.filterOutliers<0>(0, 10000);
-    //gm.filterOutliers<1>(2, 20000);
+    //gm.filterOutliers<0>(0, 200);
+    //gm.filterOutliers<1>(2, 200);
     gm.export_xyz("h.xyz");
 
     return 0;

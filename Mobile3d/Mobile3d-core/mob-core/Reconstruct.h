@@ -83,8 +83,7 @@ public:
 
 		int maxDispDepth = (int)getDisparityForDepth(minDepth, f, std::abs(shift));
 		int minDispPrec = (int)getMinDisparityForPrecision(f, std::abs(shift), precision);
-		maxDispDepth -= maxDispDepth % 16;	// TODO: Throw this stuff out
-		minDispPrec += 16 - minDispPrec % 16;	// and this
+		maxDispDepth -= maxDispDepth % 16;
 		if (maxDispDepth > maxDisp) {
 			maxDispDepth = maxDisp;
 		}
@@ -106,9 +105,17 @@ public:
 
 		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(
 				ndisp,
-				11);
-		blocksearcher->setUniquenessRatio(30);
+				15);
+		blocksearcher->setUniquenessRatio(20);
 		blocksearcher->setMinDisparity(mindisp);
+		blocksearcher->setDisp12MaxDiff(1);
+		blocksearcher->setPreFilterSize(9);
+		blocksearcher->setPreFilterType(cv::StereoBM::PREFILTER_NORMALIZED_RESPONSE);
+		blocksearcher->setPreFilterCap(31);
+		blocksearcher->setTextureThreshold(10);
+		blocksearcher->setSpeckleRange(32);
+		blocksearcher->setSpeckleWindowSize(100);
+
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
 
@@ -117,6 +124,7 @@ public:
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vr" + std::to_string(dbgidx) + ".jpg", rectified_image2(disparityRoi));
 #endif
 
+		
 		cv::Mat disparity;
 		blocksearcher->compute(rectified_image1, rectified_image2, disparity);
 		disparity /= 16;
@@ -130,16 +138,21 @@ public:
 		disparity.convertTo(exportDisp, CV_32F);
 		for (int i = 0; i < exportDisp.rows; i++) {
 			for (int j = 0; j < exportDisp.cols; j++) {
-				if (exportDisp.at<float>(i, j) < minDispPrec) {
-					continue;
+				double d;
+				if (std::abs(exportDisp.at<float>(i, j)) < minDispPrec || exportDisp.at<float>(i, j) == mindisp-1) {
+					d = 0;
 				}
-				exportDisp.at<float>(i, j) = getDepthForDisparity(std::abs(exportDisp.at<float>(i, j)), f, shift);
+				else {
+					d = getDepthForDisparity(std::abs(exportDisp.at<float>(i, j)), f, std::abs(shift));
+				}
+				exportDisp.at<float>(i, j) = d;
 			}
 		}
 		cv::normalize(exportDisp, exportDisp, 0, 255, cv::NORM_MINMAX, CV_8U);
 		cv::imshow("disp", exportDisp);
 		cv::waitKey(0);
 		*/
+		
 
 #ifdef DEBUG_ANDROID
 		cv::Mat exportDisp;
@@ -149,6 +162,7 @@ public:
 #endif
 
 		addDisparity(disparity, Q, rR1, v1.extrinsics, minDispPrec, mindisp-1, out, disparityRoi.x, disparityRoi.y);
+		
 
 		csc.printAndReset("Add3d");
 	}

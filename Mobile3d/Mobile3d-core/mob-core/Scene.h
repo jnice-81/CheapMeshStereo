@@ -535,7 +535,7 @@ public:
 		std::ofstream f(path, std::ios_base::out);
 		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			cv::Vec3f u = it->first;
-			cv::Vec3f v = addVoxelCenter(u * this->voxelSideLength);
+			cv::Vec3f v = it->second.position;
 			cv::Vec3f n = it->second.normal;
 			f << v[0] << " " << v[1] << " " << v[2] << " " << n[0] << " " << n[1] << " " << n[2] << std::endl;
 		}
