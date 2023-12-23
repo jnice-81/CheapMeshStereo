@@ -185,8 +185,8 @@ private:
 
 		std::vector<std::vector<cv::Vec3d>> normalBufferPoints;
 		std::vector<std::vector<bool>> isNormalBufferDefined;
-		const int bufferLines = 3;
-		const int minimumAvailable = 2;
+		const int bufferLines = 7;
+		const int minimumAvailable = 30;
 		normalBufferPoints.resize(bufferLines);
 		isNormalBufferDefined.resize(bufferLines);
 		for (int i = 0; i < bufferLines; i++) {
@@ -223,8 +223,9 @@ private:
 						continue;
 					}
 
-					cv::Vec3f left = vecZeros<cv::Vec3f>();
-					cv::Vec3f bottom = vecZeros<cv::Vec3f>();
+					cv::Vec3d forPoint = normalBufferPoints[currentIdxY][currentIdxX];
+					cv::Vec3d left = vecZeros<cv::Vec3d>();
+					cv::Vec3d bottom = vecZeros<cv::Vec3d>();
 					int countDefLeft = 0;
 					int countDefBottom = 0;
 
@@ -234,7 +235,7 @@ private:
 							int xidx = z + j;
 							int nextX = xidx + 1;
 
-							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[yidx][nextX]) {
+							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[yidx][nextX])  {
 								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[yidx][nextX];
 								left += c / cv::norm(c);
 								countDefLeft += 1;

@@ -36,13 +36,13 @@ int main()
     #ifdef WINDOWS
         const std::string base_dir = "C:/Users/Admin/Desktop/Mobile3d/3dmodels";
     #endif
-    const std::string project_name = "imagestream/side5m";
+    const std::string project_name = "imagestream/chair";
     const std::string projectfolder = base_dir + "/" + project_name;
 
     std::ifstream arcorefile(projectfolder + "/ARCoreData.json");
     auto arcore = jfile::parse(arcorefile);
 
-    Scene<3, bool> gm(0.05, std::vector<int>({ 10, 20, 2 }));
+    Scene<3, bool> gm(0.02, std::vector<int>({ 10, 20, 2 }));
     SlidingWindow slideWindow(10);
 
     int nimg = 0;
@@ -54,7 +54,7 @@ int main()
             keyPointIds.insert(k.get<int>());
         }*/
         nimg++;
-        if (slideWindow.shouldAddImage(extrinsics, 0.1, 0.1)) {
+        if (slideWindow.shouldAddImage(extrinsics, 0.05, 0.1)) {
             std::string imgpath = projectfolder + "/images/" + name + ".jpg";
             std::cout << imgpath << std::endl;
             cv::Mat image = cv::imread(imgpath);
@@ -62,11 +62,11 @@ int main()
             View v(image, intrinsics, extrinsics);
             slideWindow.add_image(v);
             
-            if (slideWindow.size() >= 10) {
+            if (slideWindow.size() >= 5) {
                 std::vector<ScenePoint> v;
-                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-1), v, 1, 10, 0.05);
-                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-4), v, 1, 10, 0.05);
-                Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-9), v, 1, 10, 0.05);
+                for (int i = 1; i < 5; i++) {
+                    Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-i), v, 0.5, 5, 0.02);
+                }
                 for (const auto& s : v) {
                     gm.addPoint(s.position, s.normal, s.confidence);
                 }
