@@ -9,6 +9,8 @@ from typing import Tuple
 import torchvision.transforms.functional as TF
 import pickle
 import tqdm
+import numpy as np
+import re
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, dilation):
@@ -142,6 +144,12 @@ class StereoNet(nn.Module):
         else:
             return disp.squeeze(1), var.squeeze(1)
 
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+#device = torch.device("cpu")
     
 class DrivingStereo(Dataset):
     def __init__(self, folder_left, folder_right, folder_disp):
@@ -188,33 +196,114 @@ class DrivingStereo(Dataset):
 
         return imgl, imgr, imgd
 
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-else:
-    device = torch.device("cpu")
+class SceneFlow(Dataset):
+    def __init__(self, img_folder, disp_folder) -> None:
+        super().__init__()
+
+        self.left_img = self.get_all_files(img_folder, "right", "sceneflow_left_cache")
+        self.right_img = self.get_all_files(img_folder, "left", "sceneflow_right_cache")
+        self.disp_img = self.get_all_files(disp_folder, "right", "sceneflow_disp_cache")
+        self.idx_to_val = {}
+        for i, key in enumerate(self.left_img):
+            self.idx_to_val[i] = key
+        self.transform = transforms.Compose([
+            transforms.ToTensor(), transforms.Lambda(lambda x: x[0:3, :, :]), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+
+    def get_all_files(self, folder_path, ignore_folders, cache_at):
+        all_files = {}
+        if os.path.exists(cache_at):
+            with open(cache_at, "rb") as f:
+                all_files = pickle.load(f)
+        else:
+            for root, dirs, files in os.walk(folder_path):
+                if(ignore_folders in root):
+                    continue
+                for file in files:
+                    common = os.path.commonpath([folder_path, root])
+                    file_path = os.path.join(root, file)
+                    all_files[file_path[len(common):].split(".")[0]] = file_path
+            with open(cache_at, "wb") as f:
+                pickle.dump(all_files, f)
+        return all_files
+    
+    def readPFM(self, file):
+        # Taken from sceneflow website
+
+        file = open(file, 'rb')
+
+        color = None
+        width = None
+        height = None
+        scale = None
+        endian = None
+
+        header = file.readline().rstrip().decode("ascii")
+        if header == 'PF':
+            color = True
+        elif header == 'Pf':
+            color = False
+        else:
+            raise Exception('Not a PFM file.')
+
+        dim_match = re.match(r'^(\d+)\s(\d+)\s$', file.readline().decode("ascii"))
+        if dim_match:
+            width, height = map(int, dim_match.groups())
+        else:
+            raise Exception('Malformed PFM header.')
+
+        scale = float(file.readline().rstrip().decode("ascii"))
+        if scale < 0: # little-endian
+            endian = '<'
+            scale = -scale
+        else:
+            endian = '>' # big-endian
+
+        data = np.fromfile(file, endian + 'f')
+        shape = (height, width, 3) if color else (height, width)
+
+        data = np.reshape(data, shape)
+        data = np.flipud(data)
+        file.close()
+        return data, scale
+    
+    def __len__(self):
+        return len(self.left_img)
+    
+    def __getitem__(self, index):
+        vl : str = self.idx_to_val[index]
+        imgl = self.transform(Image.open(self.left_img[vl])).to(device)
+        imgr = self.transform(Image.open(self.right_img[vl.replace("left", "right")])).to(device)
+
+        imgd, scale = self.readPFM(self.disp_img[vl])
+        assert scale == 1
+        imgd = transforms.ToTensor()(imgd.copy()).to(device)
+
+        imgd = imgd.squeeze()
+
+        return imgl, imgr, imgd
+
 
 max_disp = 120
 model = StereoNet()
 #num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 #print(f"Number of trainable parameters: {num_params}")
-model.load_state_dict(torch.load("nets/4000_0.6053308844566345.pth"))
+model.load_state_dict(torch.load("nets/standard_matching_best(71%).pth"))
 model.to(device)
-optimizer = torch.optim.RMSprop(model.parameters(), lr=0.0001)
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, 0.9)
 
-base = "E:\DrivingStereo/"
-driving_stereo = DrivingStereo(base + "train-left", base + "train-right", base + "train-disp")
-train_size = int(0.998 * len(driving_stereo))
-test_size = len(driving_stereo) - train_size
-train_dataset, test_dataset = random_split(driving_stereo, [train_size, test_size], torch.Generator().manual_seed(0))
+sceneflow = SceneFlow("E:/Sceneflow-Flying/flyingthings3d__frames_finalpass/frames_finalpass/TRAIN", "E:/Sceneflow-Flying/flyingthings3d__disparity/disparity/TRAIN")
+train_size = int(0.994 * len(sceneflow))
+test_size = len(sceneflow) - train_size
+train_dataset, test_dataset = random_split(sceneflow, [train_size, test_size], torch.Generator().manual_seed(0))
 dataloaderTrain = DataLoader(train_dataset, batch_size=1, shuffle=True)
 dataloaderTest = DataLoader(test_dataset, batch_size=1, shuffle=True)
 
-def invoke_model(left, right, disp, train=True):
+def invoke_model(left, right, disp):
     until = left.shape[3] - max_disp
     ground_disp = disp[:, :, :(until)]
-    ground_disp[ground_disp >= max_disp] = 0
-    ground_disp = ground_disp.type(torch.float32)
+    ground_disp[ground_disp >= max_disp] = torch.nan
 
     if model.training:
         preds = model(left, right, max_disp)
@@ -230,30 +319,26 @@ def invoke_model(left, right, disp, train=True):
 
 model.train()
 count = 0
-for i in range(2):
-    for left, right, disp in dataloaderTrain:
+for i in range(5):
+    for left, right, disp in tqdm.tqdm(dataloaderTrain, "Train"):
         pred_red, ground_disp = invoke_model(left, right, disp)
-        defined_mask = ground_disp != 0
-        loss = torch.sum((((((pred_red[-1] - ground_disp)[defined_mask] / 2) ** 2 + 1) ** 0.5) - 1) / (torch.sqrt(torch.tensor(2.0)) - 1))
+        defined_mask = torch.logical_not(torch.isnan(ground_disp))
+        loss = torch.sum((((((pred_red - ground_disp)[defined_mask] / 2) ** 2 + 1) ** 0.5) - 1) / (torch.sqrt(torch.tensor(2.0)) - 1))
 
-        print(f"Train loss: {loss.item()}, count: {count}", end="\r")
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
 
-        #loss.backward()
-        #optimizer.step()
-        #optimizer.zero_grad()
-
-        if True or count % 1000 == 0 and count > 0:
+        if count % 2000 == 0 and count > 0:
             model.eval()
             with torch.no_grad():
                 acc_sum = 0
                 for left, right, disp in tqdm.tqdm(dataloaderTest, "Test"):
-                    pred_red, ground_disp, var = invoke_model(left, right, disp, False)
-                    mean_var = var.median()
-                    #pred_red[var > mean_var] = 0
-                    TF.to_pil_image(ground_disp / 120).show()
-                    TF.to_pil_image(pred_red / 120).show()
-                    #TF.to_pil_image(var).show()
-                    defined_mask = ground_disp != 0
+                    pred_red, ground_disp, var = invoke_model(left, right, disp)
+                    #TF.to_pil_image(ground_disp / 120).show()
+                    #TF.to_pil_image(pred_red / 120).show()
+                    #TF.to_pil_image(var / 50).show()
+                    defined_mask = torch.logical_not(torch.isnan(ground_disp))
                     correct_predictions = (torch.abs(pred_red[defined_mask] - ground_disp[defined_mask]) <= 1).sum().item()
                     num_defined = torch.sum(defined_mask)
                     accuracy = correct_predictions / num_defined
