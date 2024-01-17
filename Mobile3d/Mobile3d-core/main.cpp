@@ -68,14 +68,13 @@ int main()
                     Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-i), v, 0.5, 5, 0.02);
                 }
                 for (const auto& s : v) {
-                    gm.addPoint(s.position, s.normal, s.confidence);
+                    gm.addPoint(s);
                 }
             }
         }
     }
 
-    //gm.filterOutliers<0>(0, 200);
-    //gm.filterOutliers<1>(2, 200);
+    
     gm.export_xyz("h.xyz");
 
     return 0;
