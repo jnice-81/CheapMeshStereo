@@ -50,3 +50,7 @@ Mobile3d.sln
 
 #libs
 OpenCV-android-sdk-4.8.0/
+tryout/sceneflow_right_cache
+tryout/sceneflow_left_cache
+tryout/sceneflow_disp_cache
+tryout/nets/standard_matching_best(71%).pth
