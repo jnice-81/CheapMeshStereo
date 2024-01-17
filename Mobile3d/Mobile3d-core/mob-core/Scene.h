@@ -6,7 +6,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include "helpers.h"
-#include "View.h"
 
 // Correct?
 class VecHash {
@@ -377,31 +376,6 @@ public:
 	}
 };
 
-class RenderHelper {
-public:
-	RenderHelper(View& v) {
-		cv::Matx44d extrinsics;
-		cv::Matx44d intrinsics;
-		v.extrinsics.convertTo(extrinsics, CV_64F);
-		cv::Mat tmpintr = cv::Mat::zeros(4, 4, CV_64F);
-		v.intrinsics.copyTo(tmpintr(cv::Rect(0, 0, 3, 3)));
-		tmpintr.at<double>(3, 2) = 1;
-		tmpintr.convertTo(intrinsics, CV_64F);
-		P = intrinsics * extrinsics;
-	}
-
-	inline cv::Vec3f projectPoint(const cv::Vec3f p) const {
-		cv::Vec4f h(p[0], p[1], p[2], 1);
-		h = P * h;
-		float d = h[2];
-		h /= h[2];
-		cv::Vec3f result(h[0], h[1], d);
-		return result;
-	}
-
-	cv::Matx44d P;
-};
-
 template<int Levels, typename NodeStorage>
 class Scene : public HierachicalVoxelGrid<Levels, NodeStorage> {
 public:
@@ -571,44 +545,4 @@ public:
 	inline double getVoxelSideLength() const {
 		return this->voxelSideLength;
 	}
-
-	/*
-	cv::Mat directRender(View& v, float zfar = 1.0f, bool renderNormals = false) {
-		cv::Size imgsize = v.image.size();
-		cv::Mat result;
-		cv::Mat zBuffer = cv::Mat::ones(imgsize, CV_32FC3) * zfar;
-		if (renderNormals) {
-			result = cv::Mat::zeros(imgsize, CV_32FC3);
-		}
-		else {
-			result = cv::Mat::zeros(imgsize, CV_32F);
-		}
-		 
-		RenderHelper rhelper(v);
-
-		for (auto it = surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			cv::Vec3f p = voxelToPoint(it->first);
-			cv::Vec3f project = rhelper.projectPoint(p);
-			cv::Vec3i pdash = floatToIntVec<int, float, 3>(project);
-			if (pdash[0] >= 0 && pdash[1] >= 0 && project[2] > 0 && pdash[0] < imgsize.width && pdash[1] < imgsize.height) {
-				if (renderNormals) {
-					cv::Vec3f n = it->second.normal;
-					n = (n + vecOnes<cv::Vec3f>() * 1.5) * (1 / 3.0);
-					if (zBuffer.at<float>(pdash[1], pdash[0]) >= project[2]) {
-						zBuffer.at<float>(pdash[1], pdash[0]) = project[2];
-						result.at<cv::Vec3f>(pdash[1], pdash[0]) = n;
-					}
-				}
-				else {
-					if (zBuffer.at<float>(pdash[1], pdash[0]) >= project[2]) {
-						zBuffer.at<float>(pdash[1], pdash[0]) = project[2];
-						result.at<float>(pdash[1], pdash[0]) = project[2] / zfar;
-					}
-				}
-			}
-		}
-
-		return result;
-	}
-	*/
 };
