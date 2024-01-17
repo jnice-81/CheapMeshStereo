@@ -13,25 +13,8 @@ template<int Levels, typename NodeStorage>
 class Scene : public HierachicalVoxelGrid<Levels, NodeStorage, ScenePoint> {
 public:
 	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels, NodeStorage, ScenePoint>(voxelSideLength, indexBlocks) {
-		
-	}
 
-	inline cv::Vec3f addVoxelCenter(const cv::Vec3f voxel) const {
-		const float center = (float)this->voxelSideLength * 0.5f;
-		const cv::Vec3f toCenter(center, center, center);
-		return voxel + toCenter;
 	}
-
-	inline cv::Vec3f voxelToPoint(const cv::Vec3i voxelIdx) const {
-		cv::Vec3f p = voxelIdx;
-		return addVoxelCenter(p * this->voxelSideLength);
-	}
-
-	inline cv::Vec3f getCenterOfVoxel(const cv::Vec3f point) const {
-		cv::Vec3i q = this->template floatToIntVec<int, float, 3>(point / this->voxelSideLength);
-		return addVoxelCenter((cv::Vec3f)q * this->voxelSideLength);
-	}
-
 	
 	std::size_t filterConfidence() {
 		std::vector<cv::Vec3i> toRemove;
@@ -49,7 +32,7 @@ public:
 		}
 
 		for (auto g : toRemove) {
-			this->surfacePoints.erase(voxelToPoint(g));
+			this->surfacePoints.erase(this->retrievePoint(g, Levels));
 		}
 
 		return toRemove.size();
@@ -183,16 +166,11 @@ public:
 			this->surfacePoints.insert_or_update(q.position, q);
 		}
 		else {
-			/*
 			float oldconfidence = current->second.confidence;
 			float newconfidence = oldconfidence + q.confidence;
 			current->second.confidence = newconfidence;
 			current->second.normal = (oldconfidence * current->second.normal + q.confidence * q.normal) / newconfidence;
-			current->second.position = (oldconfidence * current->second.position + q.confidence * q.position) / newconfidence;*/
+			current->second.position = (oldconfidence * current->second.position + q.confidence * q.position) / newconfidence;
 		}
-	}
-
-	inline double getVoxelSideLength() const {
-		return this->voxelSideLength;
 	}
 };

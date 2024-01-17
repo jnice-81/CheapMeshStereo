@@ -68,29 +68,6 @@ protected:
 			return num_points;
 		}
 
-		/*
-		bool insert_or_update(cv::Vec3f p, const cv::Vec3f normal, const float confidence) {
-			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
-			auto c = this->find(pI);
-			if (c != this->end()) {
-				if (c->second.insert_or_update(p, normal, confidence)) {
-					num_points++;
-					return true;
-				}
-				else {
-					return false;
-				}
-			}
-			else {
-				auto n = TreeLevel<CurrentLevel + 1, MaxLevel>(parent);
-				n.insert_or_update(p, normal, confidence);
-				this->insert(std::make_pair(pI, n));
-				num_points++;
-				return true;
-			}
-		}
-		*/
-
 		bool insert_or_update(cv::Vec3f p, VoxelPayload v) {
 			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
 			auto c = this->find(pI);
@@ -186,28 +163,6 @@ protected:
 				return TreeIterator<MaxLevel, MaxLevel>();
 			}
 		}
-
-		/*
-		bool insert_or_update(cv::Vec3f p, const cv::Vec3f normal, const float confidence) {
-			cv::Vec3i pI = parent->retrieveVoxel(p, MaxLevel);
-			auto it = this->find(pI);
-			if (it != this->end()) {
-				float oldconfidence = it->second.confidence;
-				it->second.confidence = oldconfidence + confidence;
-				it->second.normal = (oldconfidence * it->second.normal + confidence * normal) / it->second.confidence;
-				it->second.position = (oldconfidence * it->second.position + confidence * p) / it->second.confidence;
-				return false;
-			}
-			else {
-				ScenePoint q;
-				q.normal = normal;
-				q.confidence = confidence;
-				q.position = p;
-				this->insert(std::make_pair(pI, q));
-				return true;
-			}
-		}
-		*/
 
 		bool insert_or_update(cv::Vec3f p, VoxelPayload v) {
 			cv::Vec3i pI = parent->retrieveVoxel(p, MaxLevel);
@@ -350,7 +305,6 @@ protected:
 	};
 
 	std::vector<double> preprocVoxelSizes;
-	double voxelSideLength;
 
 	template<typename It, typename Ft, unsigned int Dim>
 	static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
@@ -370,7 +324,6 @@ public:
 	HierachicalVoxelGrid(double voxelSideLength, std::vector<int>& indexBlocks) : surfacePoints(this) {
 		preprocVoxelSizes.resize(1 + indexBlocks.size());
 		preprocVoxelSizes[indexBlocks.size() - 1 + 1] = voxelSideLength;
-		this->voxelSideLength = voxelSideLength;
 		for (int j = (int)preprocVoxelSizes.size() - 2; j >= 0; j--) {
 			preprocVoxelSizes[j] = preprocVoxelSizes[j + 1] * indexBlocks[j];
 		}
@@ -393,16 +346,9 @@ public:
 		return r;
 	}
 
-	/*
-	inline void addPoint(const cv::Vec3f point, const cv::Vec3f normal, const float confidence) {
-		surfacePoints.insert_or_update(point, normal, confidence);
+	inline double retrieveVoxelSidelength(const int level) const {
+		return this->preprocVoxelSizes[level];
 	}
-	*/
-
-	/*
-	inline TreeLevel<0, Levels>& getSceneData() {
-		return surfacePoints;
-	}*/
 
 	TreeLevel<0, Levels> surfacePoints;
 };
