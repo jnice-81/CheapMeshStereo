@@ -3,9 +3,11 @@
 #define WINDOWS
 //#define LINUX
 #include <opencv2/highgui.hpp>
-#include "mob-core/Reconstruct.h"
-#include "mob-core/SlidingWindow.h"
+//#include "mob-core/Reconstruct.h"
+//#include "mob-core/SlidingWindow.h"
 //#include "mob-core/PoissonSurfaceReconstruct.h"
+#include "mob-core/Scene.h"
+#include "mob-core/SurfaceReconstruct.h"
 
 using jfile = nlohmann::json;
 
@@ -36,23 +38,20 @@ int main()
     #ifdef WINDOWS
         const std::string base_dir = "C:/Users/Admin/Desktop/Mobile3d/3dmodels";
     #endif
+    Scene<3, bool> gm(0.02, std::vector<int>({ 10, 20, 2 }));
+
+    /*
     const std::string project_name = "imagestream/chair";
     const std::string projectfolder = base_dir + "/" + project_name;
 
     std::ifstream arcorefile(projectfolder + "/ARCoreData.json");
     auto arcore = jfile::parse(arcorefile);
 
-    Scene<3, bool> gm(0.02, std::vector<int>({ 10, 20, 2 }));
     SlidingWindow slideWindow(10);
-
     int nimg = 0;
     for (const auto& obj : arcore["ARCoreData"]) {
         std::string name = obj["name"];
         cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(load_matrix_from_json(obj["viewmatrix"]));
-        /*std::unordered_set<int> keyPointIds;
-        for (const auto& k : obj["pointIDs"]) {
-            keyPointIds.insert(k.get<int>());
-        }*/
         nimg++;
         if (slideWindow.shouldAddImage(extrinsics, 0.05, 0.1)) {
             std::string imgpath = projectfolder + "/images/" + name + ".jpg";
@@ -74,8 +73,12 @@ int main()
         }
     }
 
-    
     gm.export_xyz("h.xyz");
+    */
+
+    gm.import_xyz("h.xyz");
+
+
 
     return 0;
 }

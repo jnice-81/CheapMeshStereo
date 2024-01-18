@@ -12,6 +12,20 @@ public:
 	}
 };
 
+template<typename It, typename Ft, unsigned int Dim>
+static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
+	cv::Vec<It, Dim> g;
+	for (int i = 0; i < Dim; i++) {
+		if (in[i] < 0) {
+			g[i] = (It)(in[i] - 1);
+		}
+		else {
+			g[i] = (It)in[i];
+		}
+	}
+	return g;
+}
+
 class ScenePoint {
 public:
 	ScenePoint(cv::Vec3f position, cv::Vec3f normal, float confidence = 0)
@@ -48,7 +62,6 @@ public:
 		size_t childCount;
 	};
 
-protected:
 	template<int CurrentLevel, int MaxLevel>
 	class TreeIterator;
 
@@ -256,7 +269,7 @@ protected:
 			return &*lowerIt;
 		}
 
-		bool isEnd() {
+		bool isEnd() const {
 			return empty || this->upperIt == this->end;
 		}
 	};
@@ -304,24 +317,7 @@ protected:
 		}
 	};
 
-	std::vector<double> preprocVoxelSizes;
-
-	template<typename It, typename Ft, unsigned int Dim>
-	static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
-		cv::Vec<It, Dim> g;
-		for (int i = 0; i < Dim; i++) {
-			if (in[i] < 0) {
-				g[i] = (It)(in[i] - 1);
-			}
-			else {
-				g[i] = (It)in[i];
-			}
-		}
-		return g;
-	}
-
-public:
-	HierachicalVoxelGrid(double voxelSideLength, std::vector<int>& indexBlocks) : surfacePoints(this) {
+	HierachicalVoxelGrid(double voxelSideLength, std::vector<int> indexBlocks) : surfacePoints(this) {
 		preprocVoxelSizes.resize(1 + indexBlocks.size());
 		preprocVoxelSizes[indexBlocks.size() - 1 + 1] = voxelSideLength;
 		for (int j = (int)preprocVoxelSizes.size() - 2; j >= 0; j--) {
@@ -351,4 +347,7 @@ public:
 	}
 
 	TreeLevel<0, Levels> surfacePoints;
+
+	private:
+		std::vector<double> preprocVoxelSizes;
 };
