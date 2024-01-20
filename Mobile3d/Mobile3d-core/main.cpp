@@ -38,9 +38,11 @@ int main()
     #ifdef WINDOWS
         const std::string base_dir = "C:/Users/Admin/Desktop/Mobile3d/3dmodels";
     #endif
-    Scene<3, bool> gm(0.02, std::vector<int>({ 10, 20, 2 }));
+    
 
     /*
+    Scene<3, bool> gm(0.02, std::vector<int>({ 10, 20, 2 }));
+
     const std::string project_name = "imagestream/chair";
     const std::string projectfolder = base_dir + "/" + project_name;
 
@@ -75,10 +77,28 @@ int main()
 
     gm.export_xyz("h.xyz");
     */
+    
+    Scene<3, bool> gm(0.3, std::vector<int>({ 5, 5, 2 }));
+    gm.import_xyz("aschrag.xyz");
 
-    gm.import_xyz("h.xyz");
+    SurfaceReconstruct r(0.6);
 
+    std::unordered_set<cv::Vec3i, VecHash> gp;
 
+    auto it = gm.surfacePoints.treeIteratorBegin();
+    while (!it.isEnd()) {
+        gp.insert(r.svoxel.retrieveVoxel(it->second.position, 1));
+        it++;
+    }
+
+    for (cv::Vec3i h : gp) {
+        r.computeSurface(h, gm);
+        //std::cout << "Hello";
+    }
+    r.exportImplNorm.export_xyz("samples.xyz");
+    r.exportObj("a.obj");
+    
+    
 
     return 0;
 }

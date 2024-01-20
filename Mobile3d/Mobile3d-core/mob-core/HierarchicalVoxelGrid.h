@@ -342,6 +342,11 @@ public:
 		return r;
 	}
 
+	inline cv::Vec3f retrieveCornerPoint(const cv::Vec3i c, const int level) const {
+		cv::Vec3f r = ((cv::Vec3f)c) * preprocVoxelSizes[level];
+		return r;
+	}
+
 	inline double retrieveVoxelSidelength(const int level) const {
 		return this->preprocVoxelSizes[level];
 	}
