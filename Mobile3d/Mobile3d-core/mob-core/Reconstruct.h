@@ -56,30 +56,12 @@ public:
 		int height = std::min(validRoiV1.y + validRoiV1.height, validRoiV2.y + validRoiV2.height) - y;
 		cv::Rect disparityRoi = cv::Rect(x, y, width, height);
 
-		if (width <= 30 || height <= 30) {
-			std::cout << "Aborted because of no usable rectified area";
-			return;
-		}
-
 		if (rP2.at<double>(1, 3) != 0) {
 			std::cout << "Aborted update because of vertical shift";
 			return; // Indicates vertical rectification which is not supported for now
 		}
 		double shift = -1 / Q.at<double>(3, 2);
 		double f = Q.at<double>(2, 3);
-
-		cv::Mat map1x, map1y, map2x, map2y;
-		cv::initUndistortRectifyMap(v1.intrinsics, cv::Mat(), rR1, rP1, imgsize, CV_16SC2, map1x, map1y);
-		cv::initUndistortRectifyMap(v2.intrinsics, cv::Mat(), rR2, rP2, imgsize, CV_16SC2, map2x, map2y);
-
-		cv::Mat rectified_image1, rectified_image2;
-		cv::remap(v1.image, rectified_image1, map1x, map1y, cv::INTER_LINEAR);
-		cv::remap(v2.image, rectified_image2, map2x, map2y, cv::INTER_LINEAR);
-
-		rectified_image1 = rectified_image1(disparityRoi);
-		rectified_image2 = rectified_image2(disparityRoi);
-
-		csc.printAndReset("Rectify");
 
 		int maxDispDepth = (int)getDisparityForDepth(minDepth, f, std::abs(shift));
 		int minDispPrec = (int)getMinDisparityForPrecision(f, std::abs(shift), precision);
@@ -93,6 +75,24 @@ public:
 			std::cout << "No valid disparity for the given precision and depth. Aborted";
 			return;
 		}
+
+		if (width - maxDispDepth <= 50 || height <= 50) {
+			std::cout << "Aborted because of no usable rectified area";
+			return;
+		}
+
+		cv::Mat map1x, map1y, map2x, map2y;
+		cv::initUndistortRectifyMap(v1.intrinsics, cv::Mat(), rR1, rP1, imgsize, CV_16SC2, map1x, map1y);
+		cv::initUndistortRectifyMap(v2.intrinsics, cv::Mat(), rR2, rP2, imgsize, CV_16SC2, map2x, map2y);
+
+		cv::Mat rectified_image1, rectified_image2;
+		cv::remap(v1.image, rectified_image1, map1x, map1y, cv::INTER_LINEAR);
+		cv::remap(v2.image, rectified_image2, map2x, map2y, cv::INTER_LINEAR);
+
+		rectified_image1 = rectified_image1(disparityRoi);
+		rectified_image2 = rectified_image2(disparityRoi);
+
+		csc.printAndReset("Rectify");
 
 		int ndisp = maxDispDepth;
 		int mindisp;
@@ -130,28 +130,6 @@ public:
 		disparity /= 16;
 
 		csc.printAndReset("Disparity");
-
-		/*
-		cv::imshow("l", rectified_image1);
-		cv::imshow("r", rectified_image2);
-		cv::Mat exportDisp;
-		disparity.convertTo(exportDisp, CV_32F);
-		for (int i = 0; i < exportDisp.rows; i++) {
-			for (int j = 0; j < exportDisp.cols; j++) {
-				double d;
-				if (std::abs(exportDisp.at<float>(i, j)) < minDispPrec || exportDisp.at<float>(i, j) == mindisp-1) {
-					d = 0;
-				}
-				else {
-					d = getDepthForDisparity(std::abs(exportDisp.at<float>(i, j)), f, std::abs(shift));
-				}
-				exportDisp.at<float>(i, j) = d;
-			}
-		}
-		cv::normalize(exportDisp, exportDisp, 0, 255, cv::NORM_MINMAX, CV_8U);
-		cv::imshow("disp", exportDisp);
-		cv::waitKey(0);
-		*/
 		
 
 #ifdef DEBUG_ANDROID
@@ -161,10 +139,39 @@ public:
 		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vdisp" + std::to_string(dbgidx) + ".jpg", exportDisp);
 #endif
 
+		//std::vector<ScenePoint> tmpOut;
 		addDisparity(disparity, Q, rR1, v1.extrinsics, minDispPrec, mindisp-1, out, disparityRoi.x, disparityRoi.y);
-		
 
+		/*
+		Scene<1, bool> u(0.01, std::vector<int>({ 5 }));
+		for (const ScenePoint& g : tmpOut) {
+			u.addPoint(g);
+		}
+		u.export_xyz("tmp.xyz");
+		
 		csc.printAndReset("Add3d");
+
+		cv::imshow("l", rectified_image1);
+		cv::imshow("r", rectified_image2);
+		cv::Mat exportDisp;
+		disparity.convertTo(exportDisp, CV_32F);
+		for (int i = 0; i < exportDisp.rows; i++) {
+			for (int j = 0; j < exportDisp.cols; j++) {
+				double d;
+				if (std::abs(exportDisp.at<float>(i, j)) < minDispPrec || exportDisp.at<float>(i, j) == mindisp - 1) {
+					d = 0;
+				}
+				else {
+					d = getDepthForDisparity(std::abs(exportDisp.at<float>(i, j)), f, std::abs(shift));
+				}
+				exportDisp.at<float>(i, j) = d;
+			}
+			}
+		cv::normalize(exportDisp, exportDisp, 0, 255, cv::NORM_MINMAX, CV_8U);
+		cv::imshow("disp", exportDisp);
+		cv::waitKey(0);
+		*/
+
 	}
 
 private:
@@ -180,6 +187,10 @@ private:
 		Rrectify4x4(cv::Rect(0, 0, 3, 3)) = Rrectify.t();
 		Rrectify4x4.at<double>(3, 3) = 1;
 		cv::Mat tmp = extrinsics.inv() * Rrectify4x4 * Q;
+		cv::Vec4d camPosTmp;
+		((cv::Mat)extrinsics.inv().col(3)).convertTo(camPosTmp, CV_64F);
+		cv::Vec3d camPosTmp2(camPosTmp.val);
+		cv::Vec3f camPos = camPosTmp2;
 		cv::Matx44d Pback;
 		tmp.convertTo(Pback, CV_64F);
 
@@ -224,46 +235,43 @@ private:
 					}
 
 					cv::Vec3d forPoint = normalBufferPoints[currentIdxY][currentIdxX];
-					cv::Vec3d left = vecZeros<cv::Vec3d>();
-					cv::Vec3d bottom = vecZeros<cv::Vec3d>();
-					int countDefLeft = 0;
-					int countDefBottom = 0;
+					std::vector<cv::Vec3f> points;
 
 					for (int k = 0; k < bufferLines; k++) {
 						int yidx = virtualToRealNormalBufferIdx(k, currentWriteLine, bufferLines);
 						for (int z = 0; z < bufferLines -1; z++) {
 							int xidx = z + j;
-							int nextX = xidx + 1;
 
-							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[yidx][nextX])  {
-								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[yidx][nextX];
-								left += c / cv::norm(c);
-								countDefLeft += 1;
+							if (isNormalBufferDefined[yidx][xidx])  {
+								points.push_back(normalBufferPoints[yidx][xidx]);
 							}
 						}
 					}
 
-					for (int k = 0; k < bufferLines-1; k++) {
-						int yidx = virtualToRealNormalBufferIdx(k, currentWriteLine, bufferLines);
-						int nextY = virtualToRealNormalBufferIdx(k+1, currentWriteLine, bufferLines);
-						for (int z = 0; z < bufferLines; z++) {
-							int xidx = z + j;
+					if (points.size() >= minimumAvailable) {
 
-							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[nextY][xidx]) {
-								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[nextY][xidx];
-								bottom += c / cv::norm(c);
-								countDefBottom += 1;
-							}
+						cv::Vec3d mean = cv::Vec3d::zeros();
+						for (const auto& g : points) {
+							mean += g;
 						}
-					}
+						mean = mean * (1.0 / points.size());
+						cv::Mat A(3, points.size(), CV_32F);
+						for (int i = 0; i < points.size(); i++) {
+							cv::Vec3f p = points[i] - (cv::Vec3f)mean;
+							A.at<float>(0, i) = p[0];
+							A.at<float>(1, i) = p[1];
+							A.at<float>(2, i) = p[2];
+						}
 
-					if (countDefBottom >= minimumAvailable && countDefLeft >= minimumAvailable) {
-						left /= countDefLeft;
-						bottom /= countDefBottom;
+						cv::SVD svd(A);
 
-						cv::Vec3f n = - left.cross(bottom);
+						cv::Vec3f n = svd.u.col(2);
 						n = n / cv::norm(n);
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
+						cv::Vec3f toCamera = camPos - p;
+						if (n.dot(toCamera) < (-n).dot(toCamera)) {
+							n = -n;
+						}
 
 						out.emplace_back(p, n, 1.0f);
 					}
