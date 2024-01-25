@@ -269,11 +269,16 @@ private:
 						n = n / cv::norm(n);
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
 						cv::Vec3f toCamera = camPos - p;
-						if (n.dot(toCamera) < (-n).dot(toCamera)) {
+						toCamera = toCamera / cv::norm(toCamera);
+						float d = n.dot(toCamera);
+						if (d < 0) {
 							n = -n;
+							d = -d;
 						}
 
-						out.emplace_back(p, n, 1.0f);
+						if (d > 0.3) {
+							out.emplace_back(p, n);
+						}
 					}
 				}
 			}

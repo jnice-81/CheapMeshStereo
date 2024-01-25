@@ -28,11 +28,10 @@ static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
 
 class ScenePoint {
 public:
-	ScenePoint(cv::Vec3f position, cv::Vec3f normal, float confidence = 0)
+	ScenePoint(cv::Vec3f position, cv::Vec3f normal)
 	{
 		this->position = position;
 		this->normal = normal;
-		this->confidence = confidence;
 	}
 
 	ScenePoint() {
@@ -41,7 +40,6 @@ public:
 
 	cv::Vec3f position;
 	cv::Vec3f normal;
-	float confidence = 0;
 };
 
 class TreeIterator;

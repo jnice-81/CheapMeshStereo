@@ -15,28 +15,6 @@ public:
 	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels, NodeStorage, ScenePoint>(voxelSideLength, indexBlocks) {
 
 	}
-	
-	std::size_t filterConfidence() {
-		std::vector<cv::Vec3i> toRemove;
-		float avgConfidence = 0;
-
-		size_t psize = this->surfacePoints.getPointCount();
-		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			avgConfidence += it->second.confidence * (1.0 / psize);
-		}
-
-		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			if (it->second.confidence <= avgConfidence * 0.7) {
-				toRemove.push_back(it->first);
-			}
-		}
-
-		for (auto g : toRemove) {
-			this->surfacePoints.erase(this->retrievePoint(g, Levels));
-		}
-
-		return toRemove.size();
-	}
 
 	template<int OnLevel>
 	inline std::size_t countNeighborsFor(const cv::Vec3i c, const int l1radius, const int count_max = 0) {
@@ -148,7 +126,7 @@ public:
 			}
 			if (local == 5) {
 				//this->addPoint(v, n, 1.0);
-				ScenePoint q(v, n, 1.0);
+				ScenePoint q(v, n);
 				this->addPoint(q);
 			}
 
@@ -161,16 +139,6 @@ public:
 	}
 
 	inline void addPoint(const ScenePoint& q) {
-		auto current = this->surfacePoints.findVoxel<Levels>(q.position);
-		if (current.isEnd()) {
-			this->surfacePoints.insert_or_update(q.position, q);
-		}
-		else {
-			float oldconfidence = current->second.confidence;
-			float newconfidence = oldconfidence + q.confidence;
-			current->second.confidence = newconfidence;
-			current->second.normal = (oldconfidence * current->second.normal + q.confidence * q.normal) / newconfidence;
-			current->second.position = (oldconfidence * current->second.position + q.confidence * q.position) / newconfidence;
-		}
+		this->surfacePoints.insert_or_update(q.position, q);
 	}
 };
