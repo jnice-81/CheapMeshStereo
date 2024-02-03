@@ -164,7 +164,7 @@ public:
 			for (int y = 0; y < 2; y++) {
 				for (int z = 0; z < 2; z++) {
 					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
-					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first)));
+					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first), 1));
 				}
 			}
 		}
@@ -254,7 +254,7 @@ public:
 			cv::Vec3f n = computeImplicitNormal(changePoints[i], scale, scene);
 
 			//DEBUG
-			exportImplNorm.addPoint(ScenePoint(changePoints[i], n));
+			exportImplNorm.addPoint(ScenePoint(changePoints[i], n, 1));
 
 			memcpy(((float*)A.data) + i * 3, n.val, 3 * sizeof(float));
 			b.at<float>(i, 0) = n.dot(changePoints[i]);

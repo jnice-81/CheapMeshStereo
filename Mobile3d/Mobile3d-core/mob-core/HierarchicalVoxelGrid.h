@@ -28,10 +28,11 @@ static inline cv::Vec<It, Dim> floatToIntVec(const cv::Vec<Ft, Dim> in) {
 
 class ScenePoint {
 public:
-	ScenePoint(cv::Vec3f position, cv::Vec3f normal)
+	ScenePoint(cv::Vec3f position, cv::Vec3f normal, short numhits)
 	{
 		this->position = position;
 		this->normal = normal;
+		this->numhits = numhits;
 	}
 
 	ScenePoint() {
@@ -40,6 +41,7 @@ public:
 
 	cv::Vec3f position;
 	cv::Vec3f normal;
+	short numhits;
 };
 
 class TreeIterator;
@@ -324,7 +326,7 @@ public:
 	}
 
 	// Level: Starts at 0 goes downward
-	inline cv::Vec3i retrieveVoxel(const cv::Vec3f p, const int level) const {
+	inline cv::Vec3i retrieveVoxel(const cv::Vec3f &p, const int level) const {
 		cv::Vec3i r = floatToIntVec<int, float, 3>(p / preprocVoxelSizes[level]);
 		return r;
 	}
@@ -335,12 +337,12 @@ public:
 		return toCenter;
 	}
 
-	inline cv::Vec3f retrievePoint(const cv::Vec3i c, const int level) const {
+	inline cv::Vec3f retrievePoint(const cv::Vec3i &c, const int level) const {
 		cv::Vec3f r = ((cv::Vec3f)c) * preprocVoxelSizes[level] + retrieveVoxelCenter(level);
 		return r;
 	}
 
-	inline cv::Vec3f retrieveCornerPoint(const cv::Vec3i c, const int level) const {
+	inline cv::Vec3f retrieveCornerPoint(const cv::Vec3i &c, const int level) const {
 		cv::Vec3f r = ((cv::Vec3f)c) * preprocVoxelSizes[level];
 		return r;
 	}

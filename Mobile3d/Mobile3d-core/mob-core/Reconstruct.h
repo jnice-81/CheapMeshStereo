@@ -277,7 +277,7 @@ private:
 						}
 
 						if (d > 0.3) {
-							out.emplace_back(p, n);
+							out.emplace_back(p, n, 1);
 						}
 					}
 				}
