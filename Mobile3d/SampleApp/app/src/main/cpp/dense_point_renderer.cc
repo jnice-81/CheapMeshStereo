@@ -90,13 +90,11 @@ void dense_point_renderer::draw(Scene<SceneMaxLevel, bool> &scene, const std::li
             it++;
         }
 
-        auto &surfacePoints = scene.getSceneData();
-        int qclan = 0;
+        auto &surfacePoints = scene.surfacePoints;
         for (const auto &voxel : updatedVoxels) {
 
             auto it = surfacePoints.findVoxel<SceneMaxLevel>(scene.retrievePoint(voxel, SceneMaxLevel));
             if (it.isEnd()) {
-                qclan++;
                 continue;
             }
 

@@ -9,6 +9,11 @@ public:
         this->extrinsics = extrinsics;
     }
 
+    View()
+    {
+
+    }
+
     cv::Mat image;
     cv::Mat_<double> intrinsics;
     cv::Mat_<double> extrinsics;
@@ -31,5 +36,19 @@ public:
                 0, intrinsics.at<double>(1, 1) * 0.5 * imgsize.height, intrinsics.at<double>(1, 2) + imgsize.height * 0.5,
                 0, 0, 1;
         return cvintrinsics;
+    }
+
+    static std::pair<float, float> getRelativeRotationAndTranslation(const cv::Mat& extrinsics1, const cv::Mat &extrinsics2) {
+        const cv::Rect roiR = cv::Rect(0, 0, 3, 3);
+        const cv::Rect roiT = cv::Rect(3, 0, 1, 3);
+
+        cv::Mat R = extrinsics1(roiR) * extrinsics2(roiR).t();
+        double trace = R.at<double>(0, 0) + R.at<double>(1, 1) + R.at<double>(2, 2);
+        double angle = std::acos(std::clamp((trace - 1.0) / 2.0, -1.0, 1.0));
+
+        cv::Mat T = extrinsics1(roiT) - R * extrinsics2(roiT);
+        double normT = cv::norm(T);
+
+        return std::make_pair(angle, normT);
     }
 };

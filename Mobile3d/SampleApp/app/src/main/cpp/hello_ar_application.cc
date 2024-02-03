@@ -32,7 +32,8 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 20, 2})) {}
+    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 20, 2})),
+      slideWindow(20) {}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -132,7 +133,7 @@ inline glm::mat4 CvMatToGlm4x4(cv::Mat a) {
     return b;
 }
 
-/*
+
 void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
                                      bool useDepthForOcclusion) {
   // Render the scene.
@@ -173,20 +174,32 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     return;
   }
 
+    // Update and render point cloud.
+    ArPointCloud* ar_point_cloud = nullptr;
+    ArStatus point_cloud_status =
+            ArFrame_acquirePointCloud(ar_session_, ar_frame_, &ar_point_cloud);
+    if (point_cloud_status == AR_SUCCESS) {
+        point_cloud_renderer_.Draw(projection_mat * view_mat, ar_session_, ar_point_cloud);
+        ArPointCloud_release(ar_point_cloud);
+    }
+
   cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
   std::future_status reconstruction_status;
-  if (reconstructionFuture.valid()) {
-      reconstruction_status = reconstructionFuture.wait_for(std::chrono::milliseconds(0));
-  }
-  else {
-      reconstruction_status = std::future_status::ready;
-  }
 
-  if (sceneReconstructor.shouldAddImage(extrinsics, 0.1)
-        && reconstruction_status == std::future_status::ready && renderable_output == 0) {
-      __android_log_print(ANDROID_LOG_VERBOSE, "mob-core", "Decided to add image");
+    if (reconstructionFuture.valid()) {
+        reconstruction_status = reconstructionFuture.wait_for(std::chrono::milliseconds(0));
+    }
+    else {
+        reconstruction_status = std::future_status::ready;
+    }
 
-      // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
+    // Decide weather to store the new image, load it if yes, and decide with which other images to perform comparision
+  std::pair<float, float> relativePose;
+  if (slideWindow.size() > 0) {
+      relativePose = View::getRelativeRotationAndTranslation(extrinsics, slideWindow.getView(0).extrinsics);
+  }
+  if (slideWindow.size() == 0 || relativePose.first >= 0.2 || relativePose.second >= 0.1) {
+      LOGI("Adding Image");
       const GLuint texId = background_renderer_.GetTextureId();
       glBindTexture(GL_TEXTURE_EXTERNAL_OES, texId);
       int lwidth, lheight;
@@ -206,74 +219,96 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       glDeleteFramebuffers(1, &fbo);
       util::CheckGlError("Something went wrong when copying the image to CPU");
 
-      oldimages.push_back(pixels);
       cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
       cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
       cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
-
       cv::resize(image, image, cv::Size(720, 1280));
+
+      delete[] pixels;
 
       cv::Mat intrinsics = View::oglIntrinsicsToCVIntrinsics(glm4x4ToCvMat(projection_mat), image.size());
       View current(image, intrinsics, extrinsics);
+      int currentIndex = slideWindow.add_image(current);
 
-      sceneReconstructor.add_image(current);
-      
-      reconstructionFuture = std::async(std::launch::async, [this] {
-          auto start_time = std::chrono::high_resolution_clock::now();
-          dbgidx++;
+      std::set<int> exbaselines;
+      const float ImageSamplingDensity = 0.2;
+      for (int i = 1; i < slideWindow.size(); i++) {
+          auto rel = View::getRelativeRotationAndTranslation(slideWindow.getView(-i).extrinsics, current.extrinsics);
 
-
-          reconstructorOutput.push_back(std::vector<ScenePoint>());
-          sceneReconstructor.update3d(reconstructorOutput.back(), dbgidx);
-          unfiltered_points += reconstructorOutput.back().size();
-          for (const ScenePoint &a : reconstructorOutput.back()) {
-              collectedScene.addPoint(a.position, a.normal, a.confidence);
+          if (rel.first < 0.1) {
+              int mbaseline = (int)(rel.second / ImageSamplingDensity);
+              if (exbaselines.find(mbaseline) == exbaselines.end()) {
+                  LOGI("Computation: %d, %d", currentIndex, currentIndex - i);
+                  exbaselines.insert(mbaseline);
+                  bufferedComputations.push_back(std::make_pair(currentIndex, currentIndex - i));
+              }
           }
-
-          auto it = reconstructorOutput.begin();
-          while (unfiltered_points > 500000) {
-              LOGI("Running filter %d", unfiltered_points);
-              collectedScene.filterOutliers<1>(0, 200, *it);
-              collectedScene.filterOutliers<2>(1, 40, *it);
-              unfiltered_points -= it->size();
-
-              it++;
-          }
-          renderable_output += 1;
-
-          auto end_time = std::chrono::high_resolution_clock::now();
-          auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-          LOGI("Ended %d", duration.count());
-      });
-
-      if (oldimages.size() > 2) {   // Because opencv will not automatically deal with external data we need to clean up ourselfs
-          GLubyte* old = oldimages.front();
-          delete[] old;
-          oldimages.pop_front();
       }
   }
 
-  int updates = 0;
-  if (reconstruction_status == std::future_status::ready) {
-      updates = renderable_output;
-  }
-  // reconstructorOutput and collectedScene are only accessed if updates > 0
-  densePointRenderer_.draw(collectedScene, reconstructorOutput, updates, projection_mat * view_mat);
-  if (reconstruction_status == std::future_status::ready) {
-      while (renderable_output > 0) {
-          reconstructorOutput.pop_front();
-          renderable_output -= 1;
+  // Render dense pointcloud, potentially updating if reconstruction not running
+    int updates = 0;
+    if (reconstruction_status == std::future_status::ready) {
+        updates = updatedPointsForRender.size();
+    }
+    // reconstructorOutput and collectedScene are only accessed if updates > 0
+    densePointRenderer_.draw(collectedScene, updatedPointsForRender, updates, projection_mat * view_mat);
+    if (reconstruction_status == std::future_status::ready) {
+        updatedPointsForRender.clear();
+    }
+
+
+    // Try to start a new computation if none is running
+  if (bufferedComputations.size() > 0 && reconstruction_status == std::future_status::ready) {
+      long lastDefinedImage = (long)slideWindow.getCurrentImageIndex() - (long)slideWindow.size() + 1;
+      bool isComputationRunning = false;
+      while (bufferedComputations.size() > 0) {
+          currentComputation = bufferedComputations.back();
+          bufferedComputations.pop_back();
+          isComputationRunning = currentComputation.first >= lastDefinedImage && currentComputation.second >= lastDefinedImage;
+          if (isComputationRunning) {
+              break;
+          }
+          else {
+              LOGI("Lost a computation cause image already erased");
+          }
       }
-  }
 
+      if (isComputationRunning) {
+          View v1 = slideWindow.getViewByImageIndex(currentComputation.first);
+          View v2 = slideWindow.getViewByImageIndex(currentComputation.second);
 
-  // Update and render point cloud.
-  ArPointCloud* ar_point_cloud = nullptr;
-  ArStatus point_cloud_status =
-      ArFrame_acquirePointCloud(ar_session_, ar_frame_, &ar_point_cloud);
-  if (point_cloud_status == AR_SUCCESS) {
-    point_cloud_renderer_.Draw(projection_mat * view_mat, ar_session_, ar_point_cloud);
-    ArPointCloud_release(ar_point_cloud);
+          reconstructionFuture = std::async(std::launch::async, [this, v1, v2] {
+              auto start_time = std::chrono::high_resolution_clock::now();
+              dbgidx++;
+              LOGI("Starting computation %d, %d", currentComputation.first, currentComputation.second);
+
+              reconstructorOutput.emplace_back();
+              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), 1.0, 10, collectedScene.retrieveVoxelSidelength(3), 16 * 15);
+
+              unfiltered_points += reconstructorOutput.back().size();
+              updatedPointsForRender.push_back(reconstructorOutput.back());
+              for (const ScenePoint &a: reconstructorOutput.back()) {
+                  collectedScene.addPoint(ScenePoint(a.position, a.normal));
+              }
+
+              auto it = reconstructorOutput.begin();
+              while (unfiltered_points > 500000) {
+                  LOGI("Running filter %d", unfiltered_points);
+                  collectedScene.filterOutliers<1>(0, 200, *it);
+                  collectedScene.filterOutliers<2>(1, 40, *it);
+                  unfiltered_points -= it->size();
+                  updatedPointsForRender.push_back(*it);
+
+                  it++;
+              }
+
+              auto end_time = std::chrono::high_resolution_clock::now();
+              auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      end_time - start_time);
+              LOGI("Ended %d", duration.count());
+          });
+      }
   }
 }
 
@@ -286,7 +321,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(collectedScene, "/data/data/com.google.ar.core.examples.c.helloar/out.ply");
     LOGI("Done");
 }
-*/
+
 
     std::string matToStringExport(cv::Mat a) {
         std::string o;
@@ -307,96 +342,6 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
         return o;
     }
 
-    void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
-                                         bool useDepthForOcclusion) {
-        // Render the scene.
-        glClearColor(0.9f, 0.9f, 0.9f, 1.0f);
-        glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-
-        glEnable(GL_CULL_FACE);
-        glEnable(GL_DEPTH_TEST);
-
-        if (ar_session_ == nullptr) return;
-
-        ArSession_setCameraTextureName(ar_session_,
-                                       background_renderer_.GetTextureId());
-
-        // Update session to get current frame and render camera background.
-        if (ArSession_update(ar_session_, ar_frame_) != AR_SUCCESS) {
-            LOGE("HelloArApplication::OnDrawFrame ArSession_update error");
-        }
-
-        if (!dbgexport.is_open()) {
-            dbgexport.open("/data/data/com.google.ar.core.examples.c.helloar/ARCoreData.json", std::ios_base::out);
-            dbgexport << "{\n \"ARCoreData\": [";
-        }
-
-        ArCamera* ar_camera;
-        ArFrame_acquireCamera(ar_session_, ar_frame_, &ar_camera);
-
-        glm::mat4 view_mat;
-        glm::mat4 projection_mat;
-        ArCamera_getViewMatrix(ar_session_, ar_camera, glm::value_ptr(view_mat));
-        ArCamera_getProjectionMatrix(ar_session_, ar_camera,
-                                     0.1f, 100.f,
-                                     glm::value_ptr(projection_mat));
-
-        background_renderer_.Draw(ar_session_, ar_frame_);
-
-        ArTrackingState camera_tracking_state;
-        ArCamera_getTrackingState(ar_session_, ar_camera, &camera_tracking_state);
-        ArCamera_release(ar_camera);
-
-        // If the camera isn't tracking don't bother rendering other objects.
-        if (camera_tracking_state != AR_TRACKING_STATE_TRACKING) {
-            return;
-        }
-
-        cv::Mat extrinsics = glm4x4ToCvMat(view_mat);
-
-        // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
-        const GLuint texId = background_renderer_.GetTextureId();
-        glBindTexture(GL_TEXTURE_EXTERNAL_OES, texId);
-        int lwidth, lheight;
-        glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_WIDTH, &lwidth);
-        glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_HEIGHT, &lheight);
-
-        GLubyte* pixels = new GLubyte[lwidth * lheight * 4]; // 4 channels (RGBA)
-
-        GLuint fbo;
-        glGenFramebuffers(1, &fbo);
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_EXTERNAL_OES, texId, 0);
-
-        glReadPixels(0, 0, lwidth, lheight, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glDeleteFramebuffers(1, &fbo);
-        util::CheckGlError("Something went wrong when copying the image to CPU");
-
-        oldimages.push_back(pixels);
-        cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
-        cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
-        cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
-
-        cv::resize(image, image, cv::Size(720, 1280));
-
-        cv::Mat intrinsics = glm4x4ToCvMat(projection_mat);
-
-        auto imname = std::to_string(dbgidx);
-        cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/" + imname + ".jpg", image);
-        dbgexport << ",{\"name\": " << "\"" << imname << "\"" << ",\n"
-            << "\"projection\": [" << matToStringExport(intrinsics) << "],\n"
-            << "\"viewmatrix\": [" << matToStringExport(extrinsics) << "]\n}\n";
-
-        dbgidx++;
-    }
-
-    void HelloArApplication::ComputeSurface() {
-        dbgexport << "]\n}";
-        dbgexport.close();
-        exit(0);
-    }
 
 void HelloArApplication::ConfigureSession() {
 
@@ -443,3 +388,95 @@ glm::mat3 HelloArApplication::GetTextureTransformMatrix(
   return glm::make_mat3(uvTransform);
 }
 }  // namespace hello_ar
+
+/*
+void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
+                                     bool useDepthForOcclusion) {
+    // Render the scene.
+    glClearColor(0.9f, 0.9f, 0.9f, 1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+
+    if (ar_session_ == nullptr) return;
+
+    ArSession_setCameraTextureName(ar_session_,
+                                   background_renderer_.GetTextureId());
+
+    // Update session to get current frame and render camera background.
+    if (ArSession_update(ar_session_, ar_frame_) != AR_SUCCESS) {
+        LOGE("HelloArApplication::OnDrawFrame ArSession_update error");
+    }
+
+    if (!dbgexport.is_open()) {
+        dbgexport.open("/data/data/com.google.ar.core.examples.c.helloar/ARCoreData.json", std::ios_base::out);
+        dbgexport << "{\n \"ARCoreData\": [";
+    }
+
+    ArCamera* ar_camera;
+    ArFrame_acquireCamera(ar_session_, ar_frame_, &ar_camera);
+
+    glm::mat4 view_mat;
+    glm::mat4 projection_mat;
+    ArCamera_getViewMatrix(ar_session_, ar_camera, glm::value_ptr(view_mat));
+    ArCamera_getProjectionMatrix(ar_session_, ar_camera,
+                                 0.1f, 100.f,
+                                 glm::value_ptr(projection_mat));
+
+    background_renderer_.Draw(ar_session_, ar_frame_);
+
+    ArTrackingState camera_tracking_state;
+    ArCamera_getTrackingState(ar_session_, ar_camera, &camera_tracking_state);
+    ArCamera_release(ar_camera);
+
+    // If the camera isn't tracking don't bother rendering other objects.
+    if (camera_tracking_state != AR_TRACKING_STATE_TRACKING) {
+        return;
+    }
+
+    cv::Mat extrinsics = glm4x4ToCvMat(view_mat);
+
+    // Read the image from GPU (acquireCameraImage gives YUV format => useless unless writing conversion to RGB for 2 hours) ;(
+    const GLuint texId = background_renderer_.GetTextureId();
+    glBindTexture(GL_TEXTURE_EXTERNAL_OES, texId);
+    int lwidth, lheight;
+    glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_WIDTH, &lwidth);
+    glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_HEIGHT, &lheight);
+
+    GLubyte* pixels = new GLubyte[lwidth * lheight * 4]; // 4 channels (RGBA)
+
+    GLuint fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_EXTERNAL_OES, texId, 0);
+
+    glReadPixels(0, 0, lwidth, lheight, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+    util::CheckGlError("Something went wrong when copying the image to CPU");
+
+    oldimages.push_back(pixels);
+    cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
+    cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
+    cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
+
+    cv::resize(image, image, cv::Size(720, 1280));
+
+    cv::Mat intrinsics = glm4x4ToCvMat(projection_mat);
+
+    auto imname = std::to_string(dbgidx);
+    cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/" + imname + ".jpg", image);
+    dbgexport << ",{\"name\": " << "\"" << imname << "\"" << ",\n"
+        << "\"projection\": [" << matToStringExport(intrinsics) << "],\n"
+        << "\"viewmatrix\": [" << matToStringExport(extrinsics) << "]\n}\n";
+
+    dbgidx++;
+}
+
+void HelloArApplication::ComputeSurface() {
+    dbgexport << "]\n}";
+    dbgexport.close();
+    exit(0);
+}*/

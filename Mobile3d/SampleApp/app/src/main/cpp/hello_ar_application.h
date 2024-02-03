@@ -40,8 +40,8 @@
 #include "texture.h"
 #include "util.h"
 
-//#define DEBUG_ANDROID
 #include <Reconstruct.h>
+#include <SlidingWindow.h>
 #include <dense_point_renderer.h>
 
 namespace hello_ar {
@@ -104,11 +104,12 @@ class HelloArApplication {
   dense_point_renderer densePointRenderer_;
 
   Scene<3, bool> collectedScene;
-  Reconstruct sceneReconstructor;
+  SlidingWindow slideWindow;
+  std::vector<std::pair<std::size_t, std::size_t>> bufferedComputations;
+  std::pair<std::size_t, std::size_t> currentComputation;
   std::list<std::vector<ScenePoint>> reconstructorOutput;
+  std::list<std::vector<ScenePoint>> updatedPointsForRender;
   size_t unfiltered_points = 0;
-  int renderable_output = 0;
-  std::list<GLubyte*> oldimages;
   std::future<void> reconstructionFuture;
   int dbgidx = 0;
   std::fstream dbgexport;

@@ -148,11 +148,12 @@ class SurfaceReconstruct {
 		return -v1 / (v2 - v1);
 	}
 public:
-	const float minweight = 0.0;
-	const float scalefactor = 3.0;
+	float minweight;
+	float scalefactor;
 	HierachicalVoxelGrid<1, bool, SurfaceVoxel> svoxel;
 
-	SurfaceReconstruct(float sidelength) : svoxel(sidelength, std::vector<int>({ 5 })), exportImplNorm(0.001, std::vector<int>({5}))
+	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0) :
+		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), exportImplNorm(0.001, std::vector<int>({5}))
 	{
 		
 	}
@@ -163,7 +164,7 @@ public:
 			for (int y = 0; y < 2; y++) {
 				for (int z = 0; z < 2; z++) {
 					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
-					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first, 0), 1.0));
+					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first)));
 				}
 			}
 		}
@@ -240,7 +241,7 @@ public:
 			}
 		}
 
-		if (changePoints.size() <= 1) {
+		if (changePoints.size() == 0) {
 			return;
 		}
 
@@ -253,7 +254,7 @@ public:
 			cv::Vec3f n = computeImplicitNormal(changePoints[i], scale, scene);
 
 			//DEBUG
-			exportImplNorm.addPoint(ScenePoint(changePoints[i], n, 1.0));
+			exportImplNorm.addPoint(ScenePoint(changePoints[i], n));
 
 			memcpy(((float*)A.data) + i * 3, n.val, 3 * sizeof(float));
 			b.at<float>(i, 0) = n.dot(changePoints[i]);
@@ -266,7 +267,7 @@ public:
 		}
 		meanPos = meanPos * (1.0 / changePoints.size());
 
-		float bias = 0.1;
+		float bias = 1.0;
 		cv::Vec3f nX = cv::Vec3f(bias, 0, 0);
 		cv::Vec3f nY = cv::Vec3f(0, bias, 0);
 		cv::Vec3f nZ = cv::Vec3f(0, 0, bias);
