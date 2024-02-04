@@ -153,17 +153,15 @@ public:
 		}
 	}
 
-	void addAllSingleCount(const std::vector<ScenePoint>& newPoints) {
-		std::unordered_set<cv::Vec3i, VecHash> added;
-		
+	inline void addAllSingleCount(const std::vector<ScenePoint>& newPoints) {
 		for (const ScenePoint& p : newPoints) {
 			cv::Vec3i u = this->retrieveVoxel(p.position, Levels);
-			if (added.find(u) == added.end()) {
-				added.insert(u);
+			if (addedPointsBuffer.find(u) == addedPointsBuffer.end()) {
+				addedPointsBuffer.insert(u);
 				this->addPoint(p);
 			}
 		}
-		std::cout << "Added " << added.size() << " points" << std::endl;
+		addedPointsBuffer.clear();
 	}
 	
 	std::size_t filterNumviews(const short minView) {
@@ -180,4 +178,6 @@ public:
 
 		return removeVoxelsInList<Levels>(toRemove);
 	}
+private:
+	std::unordered_set<cv::Vec3i, VecHash> addedPointsBuffer;
 };
