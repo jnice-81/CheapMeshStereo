@@ -139,7 +139,7 @@ public:
 	}
 
 	inline void addPoint(const ScenePoint& q) {
-		auto it = this->surfacePoints.findVoxel<Levels>(q.position);
+		auto it = this->surfacePoints.template findVoxel<Levels>(q.position);
 
 		if (it.isEnd()) {
 			this->surfacePoints.insert_or_update(q.position, q);

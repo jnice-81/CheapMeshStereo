@@ -289,7 +289,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
               unfiltered_points += reconstructorOutput.back().size();
               updatedPointsForRender.push_back(reconstructorOutput.back());
               for (const ScenePoint &a: reconstructorOutput.back()) {
-                  collectedScene.addPoint(ScenePoint(a.position, a.normal));
+                  collectedScene.addPoint(ScenePoint(a.position, a.normal, 1));
               }
 
               auto it = reconstructorOutput.begin();

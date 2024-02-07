@@ -1,0 +1,61 @@
+class PyrMatch {
+public:
+    std::vector<cv::Mat> generateDownsampledImages(const cv::Mat& inputImage, float factor_a, int num_levels) {
+        std::vector<cv::Mat> downsampledImages;
+
+        cv::Mat currentImage = inputImage;
+
+        downsampledImages.push_back(currentImage);
+        for (int i = 0; i < num_levels-1; ++i) {
+            cv::Mat nextImage;
+            cv::resize(currentImage, nextImage, cv::Size(), factor_a, factor_a, cv::INTER_AREA);
+
+            downsampledImages.push_back(nextImage);
+            currentImage = nextImage;
+        }
+
+        return downsampledImages;
+    }
+
+    inline uchar getPixelValue(int y, int x, int level, float factor, const std::vector<cv::Mat> &pyr) {
+        float scaled_to = std::powf(factor, level);
+        y *= scaled_to;
+        x *= scaled_to;
+        x = std::clamp(x, 0, pyr[level].cols - 1);
+        y = std::clamp(y, 0, pyr[level].rows - 1);
+        return pyr[level].at<uchar>(y, x);
+    }
+
+    void match(cv::Mat l, cv::Mat r, int max) {
+        float factor = 0.5;
+        int levels = 7;
+        float lvlweights[] = { 1000, 500, 100,20,10,5,1 };
+        std::vector<cv::Mat> lPyr = generateDownsampledImages(l, factor, levels);
+        std::vector<cv::Mat> rPyr = generateDownsampledImages(r, factor, levels);
+        cv::Mat dispIm(l.rows, l.cols, CV_16S);
+
+        for (int y = 0; y < l.rows; y++) {
+            for (int x = 0; x < l.cols; x++) {
+                int until = std::min(x + max, l.cols);
+                float mindisp = 10000000000;
+                short disp = 0;
+                for (int i = x; i < until; i++) {
+                    float currentdisp = 0.0;
+                    for (int k = 0; k < levels; k++) {
+                        currentdisp += std::powf(getPixelValue(y, x, k, factor, lPyr) - getPixelValue(y, i, k, factor, rPyr), 2.0) * lvlweights[k];
+                    }
+                    if (currentdisp < mindisp) {
+                        mindisp = currentdisp;
+                        disp = i - x;
+                    }
+                }
+
+                dispIm.at<short>(y, x) = disp;
+            }
+        }
+
+        cv::normalize(dispIm, dispIm, 0, 255, cv::NORM_MINMAX, CV_8U);
+        cv::imshow("d", dispIm);
+        cv::waitKey(0);
+    }
+};
