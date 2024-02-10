@@ -139,7 +139,7 @@ public:
 	}
 
 	inline void addPoint(const ScenePoint& q) {
-		auto it = this->surfacePoints.findVoxel<Levels>(q.position);
+		auto it = this->surfacePoints.template findVoxel<Levels>(q.position);
 
 		if (it.isEnd()) {
 			this->surfacePoints.insert_or_update(q.position, q);
@@ -154,6 +154,8 @@ public:
 	}
 
 	inline void addAllSingleCount(const std::vector<ScenePoint>& newPoints) {
+        std::unordered_set<cv::Vec3i, VecHash> addedPointsBuffer;
+
 		for (const ScenePoint& p : newPoints) {
 			cv::Vec3i u = this->retrieveVoxel(p.position, Levels);
 			if (addedPointsBuffer.find(u) == addedPointsBuffer.end()) {
@@ -161,7 +163,6 @@ public:
 				this->addPoint(p);
 			}
 		}
-		addedPointsBuffer.clear();
 	}
 	
 	std::size_t filterNumviews(const short minView) {
@@ -178,6 +179,26 @@ public:
 
 		return removeVoxelsInList<Levels>(toRemove);
 	}
-private:
-	std::unordered_set<cv::Vec3i, VecHash> addedPointsBuffer;
+
+	std::size_t filterNumviews(const short minView, const std::vector<ScenePoint>& check) {
+		std::vector<cv::Vec3i> toRemove;
+
+		std::unordered_set<cv::Vec3i, VecHash> toCheck;
+		for (const ScenePoint &p : check) {
+			toCheck.insert(this->retrieveVoxel(p.position, Levels));
+		}
+
+		for (const cv::Vec3i &c : toCheck) {
+			cv::Vec3f h = this->retrievePoint(c, Levels);
+			auto m = this->surfacePoints.template findVoxel<Levels>(h);
+
+			if (!m.isEnd()) {
+				if (m->second.numhits < minView) {
+					toRemove.push_back(c);
+				}
+			}
+		}
+
+		return removeVoxelsInList<Levels>(toRemove);
+	}
 };

@@ -89,6 +89,7 @@ class dense_point_renderer {
     unsigned int dataSize = 0;
     unsigned int actualDataSize = 0;
     std::unordered_map<cv::Vec3i, size_t, VecHash> voxelsToIndex;
+    std::unordered_map<size_t, cv::Vec3i> indexToVoxel;
     static const int SceneMaxLevel = 3;
 
 public:

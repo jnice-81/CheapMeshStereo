@@ -94,13 +94,15 @@ void dense_point_renderer::draw(Scene<SceneMaxLevel, bool> &scene, const std::li
         for (const auto &voxel : updatedVoxels) {
 
             auto it = surfacePoints.findVoxel<SceneMaxLevel>(scene.retrievePoint(voxel, SceneMaxLevel));
-            if (it.isEnd()) {
-                continue;
-            }
+            bool erase = it.isEnd();
 
             auto g = voxelsToIndex.find(voxel);
+
             size_t index;
             if (g == voxelsToIndex.end()) {
+                if (erase) {
+                    continue;
+                }
                 index = actualDataSize;
                 actualDataSize++;
                 if (actualDataSize > dataSize) {
@@ -114,14 +116,35 @@ void dense_point_renderer::draw(Scene<SceneMaxLevel, bool> &scene, const std::li
                     data = newdata;
                 }
                 voxelsToIndex.insert(std::make_pair(voxel, index));
+                indexToVoxel.insert(std::make_pair(index, voxel));
             }
             else {
                 index = g->second;
             }
 
-            const ScenePoint& current = it->second;
-            data[index].position = current.position;
-            data[index].normal = current.normal;
+            if (erase) {
+                actualDataSize--;
+                int swapwith = actualDataSize;
+
+                if (index != swapwith) {
+                    data[index] = data[swapwith];
+
+                    cv::Vec3i npos = indexToVoxel[swapwith];
+                    voxelsToIndex.erase(g);
+                    indexToVoxel.erase(swapwith);
+                    indexToVoxel[index] = npos;
+                    voxelsToIndex[npos] = index;
+                }
+                else {
+                    voxelsToIndex.erase(g);
+                    indexToVoxel.erase(index);
+                }
+            }
+            else {
+                const ScenePoint& current = it->second;
+                data[index].position = current.position;
+                data[index].normal = current.normal;
+            }
         }
 
         glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);

@@ -257,7 +257,6 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
         updatedPointsForRender.clear();
     }
 
-
     // Try to start a new computation if none is running
   if (bufferedComputations.size() > 0 && reconstruction_status == std::future_status::ready) {
       long lastDefinedImage = (long)slideWindow.getCurrentImageIndex() - (long)slideWindow.size() + 1;
@@ -286,22 +285,30 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
               reconstructorOutput.emplace_back();
               Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), 1.0, 10, collectedScene.retrieveVoxelSidelength(3), 16 * 15);
 
-              unfiltered_points += reconstructorOutput.back().size();
+              //unfiltered_points += reconstructorOutput.back().size();
               updatedPointsForRender.push_back(reconstructorOutput.back());
-              for (const ScenePoint &a: reconstructorOutput.back()) {
-                  collectedScene.addPoint(ScenePoint(a.position, a.normal));
-              }
+              collectedScene.addAllSingleCount(reconstructorOutput.back());
 
-              auto it = reconstructorOutput.begin();
-              while (unfiltered_points > 500000) {
-                  LOGI("Running filter %d", unfiltered_points);
-                  collectedScene.filterOutliers<1>(0, 200, *it);
-                  collectedScene.filterOutliers<2>(1, 40, *it);
-                  unfiltered_points -= it->size();
+
+
+              if (reconstructorOutput.size() >= 20) {
+                  auto it = reconstructorOutput.begin();
+                  int ud = collectedScene.filterNumviews(2, *it);
                   updatedPointsForRender.push_back(*it);
-
-                  it++;
+                  reconstructorOutput.pop_front();
               }
+
+              /*
+              if (reconstructorOutput.size() >= 5) {
+                  //collectedScene.filterOutliers<1>(0, 200, *it);
+                  //collectedScene.filterOutliers<2>(1, 40, *it);
+                  auto it = reconstructorOutput.begin();
+                  int ud = collectedScene.filterNumviews(10000, *it);
+                  LOGI("Removing %d", ud);
+                  updatedPointsForRender.push_back(*it);
+                  reconstructorOutput.pop_front();
+              }
+               */
 
               auto end_time = std::chrono::high_resolution_clock::now();
               auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -315,8 +322,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
  void HelloArApplication::ComputeSurface() {
     //collectedScene.filterConfidence(4);
     //collectedScene.filterOutliers(10, 200);
-    collectedScene.filterOutliers<1>(0, 200);
-    collectedScene.filterOutliers<2>(1, 40);
+    //collectedScene.filterOutliers<1>(0, 200);
+    //collectedScene.filterOutliers<2>(1, 40);
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
     //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(collectedScene, "/data/data/com.google.ar.core.examples.c.helloar/out.ply");
     LOGI("Done");
