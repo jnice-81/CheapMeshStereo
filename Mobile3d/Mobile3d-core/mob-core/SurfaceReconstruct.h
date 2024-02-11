@@ -10,7 +10,14 @@
 
 constexpr int OnLevel = 2;
 constexpr int Levels = 3;
+const int CornerCacheSize = 2000;
 typedef Scene<Levels, bool> SceneType;
+
+/*
+No optim: 45s
+iterative tracing: 14s (+ quality improved ;)
+
+*/
 
 class SurfaceVoxel {
 public:
@@ -44,6 +51,21 @@ public:
 };
 
 class SurfaceReconstruct {
+private:
+	std::unordered_map<cv::Vec3i, float, VecHash> cornerCache;
+
+	/*
+	inline void loadCache(const cv::Vec3i &voxel, std::unordered_map<cv::Vec3i, float, VecHash> &corners) const {
+		for (int x = 0; x < 2; x++) {
+			for (int y = 0; y < 2; y++) {
+				for (int z = 0; z < 2; z++) {
+					cornerCache
+				}
+			}
+		}
+	}
+	*/
+
 	//template<int OnLevel>
 	void findNeighborsFor(const cv::Vec3i c, const int l1radius, SceneType &scene, std::vector<SceneType::TreeIterator<OnLevel, Levels>>& out) const {
 		for (int i = -l1radius; i <= l1radius; i++) {
@@ -147,33 +169,8 @@ class SurfaceReconstruct {
 	double linearAdapt(double v1, double v2) {
 		return -v1 / (v2 - v1);
 	}
-public:
-	float minweight;
-	float scalefactor;
-	HierachicalVoxelGrid<1, bool, SurfaceVoxel> svoxel;
 
-	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0) :
-		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), exportImplNorm(0.001, std::vector<int>({5}))
-	{
-		
-	}
-
-	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
-		Scene<1, ScenePoint> e(0.001, std::vector<int>({ 5 }));
-		for (int x = 0; x < 2; x++) {
-			for (int y = 0; y < 2; y++) {
-				for (int z = 0; z < 2; z++) {
-					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
-					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first), 1));
-				}
-			}
-		}
-		e.export_xyz("impl.xyz");
-	}
-
-	Scene<1, ScenePoint> exportImplNorm;
-
-	void computeSurface(cv::Vec3i voxel, SceneType& scene) {
+	inline void computeSurfaceFor(const cv::Vec3i voxel, SceneType& scene, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors) {
 
 		SurfaceVoxel result;
 		float sidelength = svoxel.retrieveVoxelSidelength(1);
@@ -228,13 +225,35 @@ public:
 					}
 
 
-					if ((ck1.first >= 0 != ck2.first >= 0 || ck1.first == 0 && ck2.first != 0 || ck1.first != 0 && ck2.first == 0) && 
+					if ((ck1.first >= 0 != ck2.first >= 0 || ck1.first == 0 && ck2.first != 0 || ck1.first != 0 && ck2.first == 0) &&
 						ck1.second > minweight && ck2.second > minweight) {
 						if (g1 == 0 && g2 == 0) {
 							result.faces[j] = true;
 						}
 
 						changePoints.push_back(basepoint + linearAdapt(ck1.first, ck2.first) * edgevec);
+
+						cv::Vec3f neighborIterbase = basepoint + 0.5 * edgevec;
+						float sl = svoxel.retrieveVoxelSidelength(1);
+						for (int m = 0; m < 2; m++) {
+							for (int k = 0; k < 2; k++) {
+								cv::Vec3f q;
+								switch (j)
+								{
+								case 0:
+									q = neighborIterbase + cv::Vec3f(0, (-0.5 + m) * sl, (-0.5 + k) * sl);
+									break;
+								case 1:
+									q = neighborIterbase + cv::Vec3f((-0.5 + m) * sl, 0, (-0.5 + k) * sl);
+									break;
+								case 2:
+									q = neighborIterbase + cv::Vec3f((-0.5 + m) * sl, (-0.5 + k) * sl, 0);
+									break;
+								}
+								foundneighbors.insert(svoxel.retrieveVoxel(q, 1));
+							}
+						}
+						
 					}
 
 				}
@@ -244,7 +263,10 @@ public:
 		if (changePoints.size() == 0) {
 			return;
 		}
-
+		else {
+			foundneighbors.erase(voxel);
+		}
+		
 
 		int matrixSize = changePoints.size() + 3;
 		cv::Mat A = cv::Mat(matrixSize, 3, CV_32F);
@@ -290,6 +312,64 @@ public:
 
 		cv::Vec3f insert_point = svoxel.retrievePoint(voxel, 1);
 		svoxel.surfacePoints.insert_or_update(insert_point, result);
+	}
+
+public:
+	float minweight;
+	float scalefactor;
+	HierachicalVoxelGrid<1, bool, SurfaceVoxel> svoxel;
+
+	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0) :
+		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), exportImplNorm(0.001, std::vector<int>({5}))
+	{
+		cornerCache.reserve(CornerCacheSize);
+	}
+
+	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
+		Scene<1, ScenePoint> e(0.001, std::vector<int>({ 5 }));
+		for (int x = 0; x < 2; x++) {
+			for (int y = 0; y < 2; y++) {
+				for (int z = 0; z < 2; z++) {
+					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
+					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first), 1));
+				}
+			}
+		}
+		e.export_xyz("impl.xyz");
+	}
+
+	Scene<1, ScenePoint> exportImplNorm;
+
+	void computeSurface(SceneType& scene) {
+		std::unordered_set<cv::Vec3i, VecHash> currentComputationVoxels, futureComputationVoxels, pastComputationVoxels, currentOutput;
+
+		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			currentComputationVoxels.insert(svoxel.retrieveVoxel(it->second.position, 1));
+		}
+		
+
+		while (currentComputationVoxels.size() > 0) {
+			int cc = 0;
+			for (const auto& v : currentComputationVoxels) {
+				cc++;
+				computeSurfaceFor(v, scene, currentOutput);
+
+				for (const auto& n : currentOutput) {
+					if (currentComputationVoxels.find(n) == currentComputationVoxels.end() && pastComputationVoxels.find(n) == pastComputationVoxels.end()) {
+						futureComputationVoxels.insert(n);
+					}
+				}
+
+				currentOutput.clear();
+			}
+
+			std::cout << "Round done " << futureComputationVoxels.size() << std::endl;
+			
+			pastComputationVoxels.insert(currentComputationVoxels.begin(), currentComputationVoxels.end());
+			currentComputationVoxels.clear();
+			currentComputationVoxels.swap(futureComputationVoxels);
+		}
+
 	}
 
 	inline std::pair<std::size_t, bool> allocateVertexForVoxel(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, bool, int> &vPos, const cv::Vec3i &voxel) {
@@ -358,7 +438,6 @@ public:
 		while (!it.isEnd()) {
 
 			const auto& c = it->second;
-			std::cout << it->first << " " << c.faces[0] << " " << c.faces[1] << " " << c.faces[2] << std::endl;
 
 			for (int i = 0; i < 3; i++) {
 				if (c.faces[i]) {
