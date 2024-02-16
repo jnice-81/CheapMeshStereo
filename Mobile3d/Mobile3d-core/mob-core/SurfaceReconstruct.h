@@ -398,7 +398,8 @@ public:
 
 	void computeSurface(SceneType& scene) {
 		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
-		HierachicalVoxelGrid<2, bool, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
+		constexpr int CacheLocalityLevels = 2;
+		HierachicalVoxelGrid<CacheLocalityLevels, bool, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
 
 		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			currentComputationVoxels.surfacePoints.insert_or_update(it->second.position, false);
@@ -452,7 +453,8 @@ public:
 				computeSurfaceFor(it->first, scene, currentOutput);
 
 				for (const auto& n : currentOutput) {
-					if (currentComputationVoxels.surfacePoints.findVoxel<2>(svoxel.retrievePoint(n, 1)).isEnd() && pastComputationVoxels.find(n) == pastComputationVoxels.end()) {
+					if (currentComputationVoxels.surfacePoints.findVoxel<CacheLocalityLevels>(svoxel.retrievePoint(n, 1)).isEnd() 
+							&& pastComputationVoxels.find(n) == pastComputationVoxels.end()) {
 						futureComputationVoxels.insert(n);
 					}
 				}
@@ -469,7 +471,7 @@ public:
 			}
 			currentComputationVoxels.surfacePoints.clear();
 			for (const auto& g : futureComputationVoxels) {
-				currentComputationVoxels.surfacePoints.insert_or_update(currentComputationVoxels.retrievePoint(g, 2), false);
+				currentComputationVoxels.surfacePoints.insert_or_update(currentComputationVoxels.retrievePoint(g, CacheLocalityLevels), false);
 			}
 			futureComputationVoxels.clear();
 		}

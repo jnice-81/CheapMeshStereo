@@ -81,6 +81,11 @@ public:
 			return num_points;
 		}
 
+		virtual void clear() {
+			std::unordered_map<cv::Vec3i, TreeLevel<CurrentLevel + 1, MaxLevel>, VecHash>::clear();
+			this->num_points = 0;
+		}
+
 		bool insert_or_update(cv::Vec3f p, VoxelPayload v) {
 			cv::Vec3i pI = parent->retrieveVoxel(p, CurrentLevel);
 			auto c = this->find(pI);
