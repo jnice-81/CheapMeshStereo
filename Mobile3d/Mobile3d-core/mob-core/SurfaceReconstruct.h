@@ -14,13 +14,6 @@ const int CornerCacheSize = 30000;
 const int NormalsCacheSize = 5000;
 typedef Scene<Levels, bool> SceneType;
 
-/*
-No optim: 45s
-iterative tracing: 14s (+ quality improved ;)
-corner cache size 1000, size 100000: 12.5s, 7s
-
-*/
-
 class SurfaceVoxel {
 public:
 	SurfaceVoxel()
@@ -66,8 +59,26 @@ private:
 
 	std::unordered_map<cv::Vec3i, std::pair<float, float>, VecHash> cornerCache;
 	std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
-	std::size_t num_comp = 0;
-	std::size_t num_hit = 0;
+	float minweight;
+	float scalefactor;
+	HierachicalVoxelGrid<1, bool, SurfaceVoxel> svoxel;
+
+	/*
+	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
+		Scene<1, ScenePoint> e(0.001, std::vector<int>({ 5 }));
+		for (int x = 0; x < 2; x++) {
+			for (int y = 0; y < 2; y++) {
+				for (int z = 0; z < 2; z++) {
+					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
+					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first), 1));
+				}
+			}
+		}
+		e.export_xyz("impl.xyz");
+	}
+
+	Scene<1, ScenePoint> exportImplNorm;
+	*/
 
 	inline void loadCache(const cv::Vec3i &voxel, bool implicitCacheValid[2][2][2], std::pair<float, float> implicitVals[2][2][2]) const {
 		for (int x = 0; x < 2; x++) {
@@ -269,18 +280,12 @@ private:
 					if (!implicitCacheValid[x][y][z]) {
 						cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
 						implicitVals[x][y][z] = computeImplicitValue(p, scale, scene);
-						num_comp++;
-					}
-					else {
-						num_hit++;
 					}
 				}
 			}
 		}
 
 		storeCache(voxel, implicitVals);
-
-		//exportImplicitVals(implicitVals, zeroPoint, sidelength);
 
 		std::vector<cv::Vec3f> changePoints;
 		changePoints.reserve(12);
@@ -388,9 +393,6 @@ private:
 				loadedNormalCache[i].first = n;
 			}
 
-			//DEBUG
-			exportImplNorm.addPoint(ScenePoint(changePoints[i], n, 1));
-
 			memcpy(((float*)A.data) + i * 3, n.val, 3 * sizeof(float));
 			b.at<float>(i, 0) = n.dot(changePoints[i]);
 		}
@@ -428,31 +430,13 @@ private:
 	}
 
 public:
-	float minweight;
-	float scalefactor;
-	HierachicalVoxelGrid<1, bool, SurfaceVoxel> svoxel;
 
 	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0) :
-		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), exportImplNorm(0.001, std::vector<int>({5}))
+		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 }))
 	{
 		cornerCache.reserve(CornerCacheSize + 8);
 		normalsCache.reserve(NormalsCacheSize + 12);
 	}
-
-	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
-		Scene<1, ScenePoint> e(0.001, std::vector<int>({ 5 }));
-		for (int x = 0; x < 2; x++) {
-			for (int y = 0; y < 2; y++) {
-				for (int z = 0; z < 2; z++) {
-					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
-					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first), 1));
-				}
-			}
-		}
-		e.export_xyz("impl.xyz");
-	}
-
-	Scene<1, ScenePoint> exportImplNorm;
 
 	void computeSurface(SceneType& scene) {
 		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
@@ -519,9 +503,6 @@ public:
 
 				currentOutput.clear();
 			}
-
-			std::cout << "Round done " << futureComputationVoxels.size() << std::endl;
-			std::cout << "Num-comp vs Num-hit: " << num_comp << " / " << num_hit << std::endl;
 			
 			pastComputationVoxels.reserve(pastComputationVoxels.size() + currentComputationVoxels.surfacePoints.getPointCount());
 			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {

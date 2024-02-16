@@ -39,7 +39,7 @@ void surface_test() {
     MsClock c;
     r.computeSurface(gm);
     c.printAndReset("Ended");
-    r.exportImplNorm.export_xyz("samples.xyz");
+    //r.exportImplNorm.export_xyz("samples.xyz");
     r.exportObj("a.obj");
 }
 
