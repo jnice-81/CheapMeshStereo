@@ -10,7 +10,8 @@
 
 constexpr int OnLevel = 2;
 constexpr int Levels = 3;
-const int CornerCacheSize = 20000;
+const int CornerCacheSize = 30000;
+const int NormalsCacheSize = 5000;
 typedef Scene<Levels, bool> SceneType;
 
 /*
@@ -53,7 +54,18 @@ public:
 
 class SurfaceReconstruct {
 private:
+	struct VecPairHasher {
+		std::size_t operator()(const std::pair<cv::Vec3i, cv::Vec3i>& p) const {
+			VecHash vh;
+			std::size_t hash1 = vh(p.first);
+			std::size_t hash2 = vh(p.second);
+
+			return hash1 ^ (hash2 << 1);
+		}
+	};
+
 	std::unordered_map<cv::Vec3i, std::pair<float, float>, VecHash> cornerCache;
+	std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
 	std::size_t num_comp = 0;
 	std::size_t num_hit = 0;
 
@@ -84,6 +96,29 @@ private:
 		}
 		while (cornerCache.size() > CornerCacheSize) {
 			cornerCache.erase(cornerCache.begin());
+		}
+	}
+
+	inline void loadNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, std::vector<std::pair<cv::Vec3f, bool>>& out) {
+		for (const auto& idx : indizes) {
+			auto it = normalsCache.find(idx);
+			if (it == normalsCache.end()) {
+				out.push_back(std::make_pair(cv::Vec3f(), false));
+			}
+			else {
+				out.push_back(std::make_pair(it->second, true));
+			}
+		}
+	}
+
+	inline void storeNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, const std::vector<std::pair<cv::Vec3f, bool>>& store) {
+		for (std::size_t i = 0; i < indizes.size(); i++) {
+			if (!store[i].second) {
+				normalsCache.insert(std::make_pair(indizes[i], store[i].first));
+			}
+		}
+		while (normalsCache.size() > NormalsCacheSize) {
+			normalsCache.erase(normalsCache.begin());
 		}
 	}
 
@@ -249,6 +284,8 @@ private:
 
 		std::vector<cv::Vec3f> changePoints;
 		changePoints.reserve(12);
+		std::vector<std::pair<cv::Vec3i, cv::Vec3i>> normalCacheIdx;
+		normalCacheIdx.reserve(12);
 		cv::Vec3f xVec = cv::Vec3f(sidelength, 0.0, 0.0);
 		cv::Vec3f yVec = cv::Vec3f(0.0, sidelength, 0.0);
 		cv::Vec3f zVec = cv::Vec3f(0.0, 0.0, sidelength);
@@ -260,23 +297,30 @@ private:
 					std::pair<float, float> ck2;
 					cv::Vec3f basepoint;
 					cv::Vec3f edgevec;
+					cv::Vec3i p1, p2;
 
 					switch (j) {
 					case 0:
 						ck1 = implicitVals[0][g1][g2];
 						ck2 = implicitVals[1][g1][g2];
+						p1 = cv::Vec3i(0, g1, g2);
+						p2 = cv::Vec3i(1, g1, g2);
 						basepoint = zeroPoint + yVec * g1 + zVec * g2;
 						edgevec = xVec;
 						break;
 					case 1:
 						ck1 = implicitVals[g1][0][g2];
 						ck2 = implicitVals[g1][1][g2];
+						p1 = cv::Vec3i(g1, 0, g2);
+						p2 = cv::Vec3i(g1, 1, g2);
 						basepoint = zeroPoint + xVec * g1 + zVec * g2;
 						edgevec = yVec;
 						break;
 					case 2:
 						ck1 = implicitVals[g1][g2][0];
 						ck2 = implicitVals[g1][g2][1];
+						p1 = cv::Vec3i(g1, g2, 0);
+						p2 = cv::Vec3i(g1, g2, 1);
 						basepoint = zeroPoint + xVec * g1 + yVec * g2;
 						edgevec = zVec;
 						break;
@@ -290,6 +334,7 @@ private:
 						}
 
 						changePoints.push_back(basepoint + linearAdapt(ck1.first, ck2.first) * edgevec);
+						normalCacheIdx.push_back(std::make_pair(voxel + p1, voxel + p2));
 
 						cv::Vec3f neighborIterbase = basepoint + 0.5 * edgevec;
 						float sl = svoxel.retrieveVoxelSidelength(1);
@@ -325,13 +370,23 @@ private:
 			foundneighbors.erase(voxel);
 		}
 		
+		std::vector<std::pair<cv::Vec3f, bool>> loadedNormalCache;
+		loadedNormalCache.reserve(changePoints.size());
+		loadNormalCache(normalCacheIdx, loadedNormalCache);
 
 		int matrixSize = changePoints.size() + 3;
 		cv::Mat A = cv::Mat(matrixSize, 3, CV_32F);
 		cv::Mat b = cv::Mat(matrixSize, 1, CV_32F);
 
 		for (int i = 0; i < changePoints.size(); i++) {
-			cv::Vec3f n = computeImplicitNormal(changePoints[i], scale, scene);
+			cv::Vec3f n;
+			if (loadedNormalCache[i].second) {
+				n = loadedNormalCache[i].first;
+			}
+			else {
+				n = computeImplicitNormal(changePoints[i], scale, scene);
+				loadedNormalCache[i].first = n;
+			}
 
 			//DEBUG
 			exportImplNorm.addPoint(ScenePoint(changePoints[i], n, 1));
@@ -339,6 +394,8 @@ private:
 			memcpy(((float*)A.data) + i * 3, n.val, 3 * sizeof(float));
 			b.at<float>(i, 0) = n.dot(changePoints[i]);
 		}
+
+		storeNormalCache(normalCacheIdx, loadedNormalCache);
 
 
 		cv::Vec3f meanPos = cv::Vec3f::zeros();
@@ -379,6 +436,7 @@ public:
 		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), exportImplNorm(0.001, std::vector<int>({5}))
 	{
 		cornerCache.reserve(CornerCacheSize + 8);
+		normalsCache.reserve(NormalsCacheSize + 12);
 	}
 
 	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
