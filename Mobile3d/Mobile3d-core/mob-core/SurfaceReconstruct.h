@@ -10,7 +10,7 @@
 
 constexpr int OnLevel = 2;
 constexpr int Levels = 3;
-const int CornerCacheSize = 100000;
+const int CornerCacheSize = 20000;
 typedef Scene<Levels, bool> SceneType;
 
 /*
@@ -397,10 +397,11 @@ public:
 	Scene<1, ScenePoint> exportImplNorm;
 
 	void computeSurface(SceneType& scene) {
-		std::unordered_set<cv::Vec3i, VecHash> currentComputationVoxels, futureComputationVoxels, pastComputationVoxels, currentOutput;
+		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
+		HierachicalVoxelGrid<2, bool, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
 
 		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			currentComputationVoxels.insert(svoxel.retrieveVoxel(it->second.position, 1));
+			currentComputationVoxels.surfacePoints.insert_or_update(it->second.position, false);
 		}
 
 		/*
@@ -445,14 +446,13 @@ public:
 		}
 		*/
 
-		while (currentComputationVoxels.size() > 0) {
-			int cc = 0;
-			for (const auto& v : currentComputationVoxels) {
-				cc++;
-				computeSurfaceFor(v, scene, currentOutput);
+		while (currentComputationVoxels.surfacePoints.getPointCount() > 0) {
+			
+			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+				computeSurfaceFor(it->first, scene, currentOutput);
 
 				for (const auto& n : currentOutput) {
-					if (currentComputationVoxels.find(n) == currentComputationVoxels.end() && pastComputationVoxels.find(n) == pastComputationVoxels.end()) {
+					if (currentComputationVoxels.surfacePoints.findVoxel<2>(svoxel.retrievePoint(n, 1)).isEnd() && pastComputationVoxels.find(n) == pastComputationVoxels.end()) {
 						futureComputationVoxels.insert(n);
 					}
 				}
@@ -463,9 +463,15 @@ public:
 			std::cout << "Round done " << futureComputationVoxels.size() << std::endl;
 			std::cout << "Num-comp vs Num-hit: " << num_comp << " / " << num_hit << std::endl;
 			
-			pastComputationVoxels.insert(currentComputationVoxels.begin(), currentComputationVoxels.end());
-			currentComputationVoxels.clear();
-			currentComputationVoxels.swap(futureComputationVoxels);
+			pastComputationVoxels.reserve(pastComputationVoxels.size() + currentComputationVoxels.surfacePoints.getPointCount());
+			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+				pastComputationVoxels.insert(it->first);
+			}
+			currentComputationVoxels.surfacePoints.clear();
+			for (const auto& g : futureComputationVoxels) {
+				currentComputationVoxels.surfacePoints.insert_or_update(currentComputationVoxels.retrievePoint(g, 2), false);
+			}
+			futureComputationVoxels.clear();
 		}
 
 	}
