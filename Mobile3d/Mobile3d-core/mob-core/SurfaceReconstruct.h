@@ -10,12 +10,13 @@
 
 constexpr int OnLevel = 2;
 constexpr int Levels = 3;
-const int CornerCacheSize = 2000;
+const int CornerCacheSize = 100000;
 typedef Scene<Levels, bool> SceneType;
 
 /*
 No optim: 45s
 iterative tracing: 14s (+ quality improved ;)
+corner cache size 1000, size 100000: 12.5s, 7s
 
 */
 
@@ -52,32 +53,79 @@ public:
 
 class SurfaceReconstruct {
 private:
-	std::unordered_map<cv::Vec3i, float, VecHash> cornerCache;
+	std::unordered_map<cv::Vec3i, std::pair<float, float>, VecHash> cornerCache;
+	std::size_t num_comp = 0;
+	std::size_t num_hit = 0;
 
-	/*
-	inline void loadCache(const cv::Vec3i &voxel, std::unordered_map<cv::Vec3i, float, VecHash> &corners) const {
+	inline void loadCache(const cv::Vec3i &voxel, bool implicitCacheValid[2][2][2], std::pair<float, float> implicitVals[2][2][2]) const {
 		for (int x = 0; x < 2; x++) {
 			for (int y = 0; y < 2; y++) {
 				for (int z = 0; z < 2; z++) {
-					cornerCache
+					auto it = cornerCache.find(voxel + cv::Vec3i(x, y, z));
+					if (it != cornerCache.end()) {
+						implicitCacheValid[x][y][z] = true;
+						implicitVals[x][y][z] = it->second;
+					}
+					else {
+						implicitCacheValid[x][y][z] = false;
+					}
 				}
 			}
 		}
 	}
-	*/
 
-	//template<int OnLevel>
-	void findNeighborsFor(const cv::Vec3i c, const int l1radius, SceneType &scene, std::vector<SceneType::TreeIterator<OnLevel, Levels>>& out) const {
-		for (int i = -l1radius; i <= l1radius; i++) {
-			for (int j = -l1radius; j <= l1radius; j++) {
-				for (int k = -l1radius; k <= l1radius; k++) {
-					cv::Vec3f h = scene.retrievePoint(cv::Vec3i({ c[0] + i, c[1] + j, c[2] + k }), OnLevel);
-					auto m = scene.surfacePoints.template findVoxel<OnLevel>(h);
-
-					if (!m.isEnd()) {
-						out.push_back(m);
-					}
+	inline void storeCache(const cv::Vec3i& voxel, std::pair<float, float> implicitVals[2][2][2]) {
+		for (int x = 0; x < 2; x++) {
+			for (int y = 0; y < 2; y++) {
+				for (int z = 0; z < 2; z++) {
+					cornerCache.insert(std::make_pair(voxel + cv::Vec3i(x, y, z), implicitVals[x][y][z]));
 				}
+			}
+		}
+		while (cornerCache.size() > CornerCacheSize) {
+			cornerCache.erase(cornerCache.begin());
+		}
+	}
+
+	void findNeighborsFor(const cv::Vec3f p, const float l1radius, SceneType& scene, std::vector<SceneType::TreeIterator<OnLevel, Levels>>& out) const {
+		cv::Vec3f l1radi;
+		cv::Vec3f cornerQuad;
+
+		auto tmp = cv::Vec3f(l1radius, l1radius, l1radius);
+		cornerQuad = p - tmp;
+		l1radi = 2 * tmp;
+		float voxelSidelength = scene.retrieveVoxelSidelength(OnLevel);
+		const float numStabilityMargin = 0.1;
+		float numericalStabilityLength = numStabilityMargin * voxelSidelength;
+
+		cv::Vec3f t = cornerQuad / voxelSidelength;
+		for (int i = 0; i < 3; i++) {
+			float divInt = std::abs(t[i] - roundf(t[i]));
+			if (divInt < numStabilityMargin) {
+				cornerQuad[i] -= numericalStabilityLength;
+				l1radi[i] += 2 * numericalStabilityLength;
+			}
+		}
+
+		std::unordered_set<cv::Vec3i, VecHash> select;
+
+		for (int x = 0; x <= (int)(l1radi[0] / voxelSidelength) + 1; x++) {
+			for (int y = 0; y <= (int)(l1radi[1] / voxelSidelength) + 1; y++) {
+				for (int z = 0; z <= (int)(l1radi[2] / voxelSidelength) + 1; z++) {
+					cv::Vec3f q = cv::Vec3f(
+						std::clamp(x * voxelSidelength, 0.0f, l1radi[0]),
+						std::clamp(y * voxelSidelength, 0.0f, l1radi[1]),
+						std::clamp(z * voxelSidelength, 0.0f, l1radi[2])) + cornerQuad;
+					select.insert(scene.retrieveVoxel(q, OnLevel));
+				}
+			}
+		}
+
+		out.reserve(select.size());
+		for (const auto& g : select) {
+			auto it = scene.surfacePoints.findVoxel<OnLevel>(scene.retrievePoint(g, OnLevel));
+			if (!it.isEnd()) {
+				out.push_back(it);
 			}
 		}
 	}
@@ -89,15 +137,14 @@ private:
 	//template<int OnLevel>
 	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s, SceneType& scene) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
-		double sidelength = scene.retrieveVoxelSidelength(OnLevel);
-		int num_scan = (int)(s / sidelength) + 1;
-		findNeighborsFor(scene.retrieveVoxel(p, OnLevel), num_scan, scene, neighbors);
+		findNeighborsFor(p, s, scene, neighbors);
 
 		double weightSum = 0;
 		double weightedValueSum = 0;
 
 		for (auto& it : neighbors) {
-			while (!it.isEnd()) {
+			int count = it.getLevelInfo<OnLevel>().pointCount;
+			for (int i = 0; i < count; i++) {
 				ScenePoint g = it->second;
 
 				cv::Vec3f diff = g.position - p;
@@ -123,9 +170,7 @@ private:
 
 	cv::Vec3d computeImplicitNormal(const cv::Vec3f& p, double s, SceneType& scene) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
-		double sidelength = scene.retrieveVoxelSidelength(OnLevel);
-		int num_scan = (int)(s / sidelength) + 1;
-		findNeighborsFor(scene.retrieveVoxel(p, OnLevel), num_scan, scene, neighbors);
+		findNeighborsFor(p, s, scene, neighbors);
 
 		cv::Vec3f result;
 
@@ -140,7 +185,8 @@ private:
 		const float eps = 0.001;
 
 		for (auto& it : neighbors) {
-			while (!it.isEnd()) {
+			int count = it.getLevelInfo<OnLevel>().pointCount;
+			for (int i = 0; i < count; i++) {
 				ScenePoint g = it->second;
 
 				cv::Vec3d n = g.normal;
@@ -176,16 +222,28 @@ private:
 		float sidelength = svoxel.retrieveVoxelSidelength(1);
 		const float scale = scalefactor * scene.retrieveVoxelSidelength(Levels);
 
+		bool implicitCacheValid[2][2][2];
 		std::pair<float, float> implicitVals[2][2][2];
+		
+		loadCache(voxel, implicitCacheValid, implicitVals);
+
 		cv::Vec3f zeroPoint = svoxel.retrieveCornerPoint(voxel, 1);
 		for (int x = 0; x < 2; x++) {
 			for (int y = 0; y < 2; y++) {
 				for (int z = 0; z < 2; z++) {
-					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
-					implicitVals[x][y][z] = computeImplicitValue(p, scale, scene);
+					if (!implicitCacheValid[x][y][z]) {
+						cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
+						implicitVals[x][y][z] = computeImplicitValue(p, scale, scene);
+						num_comp++;
+					}
+					else {
+						num_hit++;
+					}
 				}
 			}
 		}
+
+		storeCache(voxel, implicitVals);
 
 		//exportImplicitVals(implicitVals, zeroPoint, sidelength);
 
@@ -300,8 +358,6 @@ private:
 		b.at<float>(changePoints.size() + 1, 0) = nY.dot(meanPos);
 		b.at<float>(changePoints.size() + 2, 0) = nZ.dot(meanPos);
 
-		//std::cout << A << std::endl << b;
-
 		cv::Vec3f point;
 		if (cv::solve(A, b, point, cv::DECOMP_NORMAL)) {
 			result.pos = point;
@@ -322,7 +378,7 @@ public:
 	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0) :
 		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), exportImplNorm(0.001, std::vector<int>({5}))
 	{
-		cornerCache.reserve(CornerCacheSize);
+		cornerCache.reserve(CornerCacheSize + 8);
 	}
 
 	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
@@ -346,7 +402,48 @@ public:
 		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			currentComputationVoxels.insert(svoxel.retrieveVoxel(it->second.position, 1));
 		}
-		
+
+		/*
+		const float scale = 0.05;
+		for (auto it = currentComputationVoxels.begin(); it != currentComputationVoxels.end(); it++) {
+			cv::Vec3f u = svoxel.retrievePoint(*it, 1);
+			std::vector<SceneType::TreeIterator<OnLevel, Levels>> out;
+
+			cv::Vec3i g = scene.retrieveVoxel(u, OnLevel);
+
+			findNeighborsFor(u, scale, scene, out);
+			int closePoints = 0, farPoints = 0;
+			for (auto it1 = out.begin(); it1 != out.end(); it1++) {
+				auto it2 = *it1;
+				auto info = it2.getLevelInfo<OnLevel>();
+				for (int i = 0; i < info.pointCount; i++) {
+					float dist = cv::norm(u - it2->second.position);
+					if (dist > scale) {
+						farPoints++;
+					}
+					else {
+						closePoints++;
+					}
+					it2++;
+				}
+			}
+			std::cout << "Close " << closePoints << " Far " << farPoints << " Total " << closePoints + farPoints << std::endl;
+
+			auto sit = scene.surfacePoints.treeIteratorBegin();
+			farPoints = 0; closePoints = 0;
+			while (!sit.isEnd()) {
+				if (cv::norm(u - sit->second.position) > scale) {
+					farPoints++;
+				}
+				else {
+					closePoints++;
+				}
+				sit++;
+			}
+			std::cout << "Actual :" << "Close " << closePoints << " Far " << farPoints << " Total " << closePoints + farPoints << std::endl;
+
+		}
+		*/
 
 		while (currentComputationVoxels.size() > 0) {
 			int cc = 0;
@@ -364,6 +461,7 @@ public:
 			}
 
 			std::cout << "Round done " << futureComputationVoxels.size() << std::endl;
+			std::cout << "Num-comp vs Num-hit: " << num_comp << " / " << num_hit << std::endl;
 			
 			pastComputationVoxels.insert(currentComputationVoxels.begin(), currentComputationVoxels.end());
 			currentComputationVoxels.clear();
