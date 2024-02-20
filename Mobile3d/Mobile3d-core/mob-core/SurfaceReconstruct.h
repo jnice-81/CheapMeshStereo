@@ -12,7 +12,7 @@ constexpr int OnLevel = 2;
 constexpr int Levels = 3;
 const int CornerCacheSize = 30000;
 const int NormalsCacheSize = 5000;
-typedef Scene<Levels, bool> SceneType;
+typedef Scene<Levels> SceneType;
 
 class SurfaceVoxel {
 public:
@@ -61,7 +61,7 @@ private:
 	std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
 	float minweight;
 	float scalefactor;
-	HierachicalVoxelGrid<1, bool, SurfaceVoxel> svoxel;
+	HierachicalVoxelGrid<1, SurfaceVoxel> svoxel;
 
 	/*
 	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
@@ -441,7 +441,7 @@ public:
 	void computeSurface(SceneType& scene) {
 		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
 		constexpr int CacheLocalityLevels = 2;
-		HierachicalVoxelGrid<CacheLocalityLevels, bool, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
+		HierachicalVoxelGrid<CacheLocalityLevels, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
 
 		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			currentComputationVoxels.surfacePoints.insert_or_update(it->second.position, false);
@@ -517,7 +517,7 @@ public:
 
 	}
 
-	inline std::pair<std::size_t, bool> allocateVertexForVoxel(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, bool, int> &vPos, const cv::Vec3i &voxel) {
+	inline std::pair<std::size_t, bool> allocateVertexForVoxel(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, int> &vPos, const cv::Vec3i &voxel) {
 		int result;
 		cv::Vec3f middle = svoxel.retrievePoint(voxel, 1);
 		auto it = vPos.surfacePoints.findVoxel<1>(middle);
@@ -537,7 +537,7 @@ public:
 		return std::make_pair(result, true);
 	}
 
-	inline void exportFace(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, bool, int> &vPos, std::vector<CopyArray<int, 6>>& faces, 
+	inline void exportFace(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, int> &vPos, std::vector<CopyArray<int, 6>>& faces, 
 		const cv::Vec3i& base, const std::vector<cv::Vec3i>& relativeIncludes) {
 
 		int result[6];
@@ -573,7 +573,7 @@ public:
 	}
 
 	void toConnectedMesh(std::vector<CopyArray<float, 3>>& vertices, std::vector<CopyArray<int, 6>>& faces) {
-		HierachicalVoxelGrid<1, bool, int> vPos(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5 }));
+		HierachicalVoxelGrid<1, int> vPos(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5 }));
 		std::vector<std::vector<cv::Vec3i>> relativeNeighbors = { 
 			{cv::Vec3i(0, 0, 0), cv::Vec3i(0, -1, 0), cv::Vec3i(0, 0, -1), cv::Vec3i(0, -1, -1)},
 			{cv::Vec3i(0, 0, 0), cv::Vec3i(-1, 0, 0), cv::Vec3i(0, 0, -1), cv::Vec3i(-1, 0, -1)},

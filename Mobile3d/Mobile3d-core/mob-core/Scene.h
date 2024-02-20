@@ -5,17 +5,32 @@
 #include <fstream>
 #include <unordered_set>
 #include <unordered_map>
+
 #include "helpers.h"
 #include "HierarchicalVoxelGrid.h"
+#include "ScenePoint.h"
 
+/*
+A storage for point clouds built on top of HierarchicalVoxelGrid. (Rather: It is a hierarchical voxel grid)
+Provides convenience functions, but most of the time using this, one will end up using surfacePoints of HierarchicalVoxelGrid.
 
-template<int Levels, typename NodeStorage>
-class Scene : public HierachicalVoxelGrid<Levels, NodeStorage, ScenePoint> {
+Levels: The number of Levels of the hierarchical Grid
+*/
+template<int Levels>
+class Scene : public HierachicalVoxelGrid<Levels, ScenePoint> {
 public:
-	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels, NodeStorage, ScenePoint>(voxelSideLength, indexBlocks) {
+	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels, ScenePoint>(voxelSideLength, indexBlocks) {
 
 	}
 
+	/*
+	Count how many points exist on a given level with a (l1) distance of at most l1radius voxels.
+
+	OnLevel: On which level to count.
+	c: The index of the center voxel (the voxel to count for)
+	l1radius: An integer specifying the number of voxels to count in each direction
+	count_max: Function returns early if value is higher than this. In this case count_max is returned.
+	*/
 	template<int OnLevel>
 	inline std::size_t countNeighborsFor(const cv::Vec3i c, const int l1radius, const int count_max = 0) {
 		size_t hits = 0;
@@ -40,6 +55,11 @@ public:
 		return hits;
 	}
 
+	/*
+	Remove all the voxels in the vector.
+
+	OnLevel: On which level are the voxel to erase?
+	*/
 	template<int OnLevel>
 	size_t removeVoxelsInList(const std::vector<cv::Vec3i> &toRemove) {
 		size_t removed = 0;
@@ -51,7 +71,13 @@ public:
 		return removed;
 	}
 
-	
+	/*
+	Filter outliers using countNeighborsFor. Essentially delete points that have to few close points.
+
+	OnLevel: On which level to invoke countNeighborsFor
+	l1radius: The radius passed on to countNeighborsFor
+	minhits: The minimum number of close points a voxel needs to survive
+	*/
 	template<int OnLevel>
 	std::size_t filterOutliers(const int l1radius, const int minhits) {
 		// This thing is dependent on order, cause as outliers are removed, other points
@@ -74,6 +100,9 @@ public:
 		return removeVoxelsInList<OnLevel>(toRemove);
 	}
 
+	/*
+	Same as filterOutliers above, but check specifies a list of points for which an outlier check should be performed.
+	*/
 	template<int OnLevel>
 	std::size_t filterOutliers(const int l1radius, const int minhits, const std::vector<ScenePoint>& check) {
 		std::vector<cv::Vec3i> toRemove;
@@ -99,6 +128,9 @@ public:
 		return removeVoxelsInList<OnLevel>(toRemove);
 	}
 
+	/*
+	Export the pointcloud as an xyz file.
+	*/
 	void export_xyz(std::string path) {
 		std::ofstream f(path, std::ios_base::out);
 		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
@@ -109,7 +141,10 @@ public:
 		}
 		f.close();
 	}
-
+	
+	/*
+	Import an xyz file into the scene.
+	*/
 	void import_xyz(std::string path) {
 		std::ifstream f(path, std::ios_base::in);
 		int idx = 0;
@@ -138,6 +173,11 @@ public:
 		f.close();
 	}
 
+	/*
+	Add a single scenepoint to the pointcloud. If the voxel to which the point is 
+	added is already in use, the mean of the positions and normals of all added points is computed
+	and numhits is increased by the number of hits of the added ScenePoint. (probably 1)
+	*/
 	inline void addPoint(const ScenePoint& q) {
 		auto it = this->surfacePoints.template findVoxel<Levels>(q.position);
 
@@ -153,6 +193,10 @@ public:
 		}
 	}
 
+	/*
+	Add all points in newPoints to the Pointcloud, but only add once to each voxel, even if
+	points in the same voxel are contained multiple times in newPoints.
+	*/
 	inline void addAllSingleCount(const std::vector<ScenePoint>& newPoints) {
         std::unordered_set<cv::Vec3i, VecHash> addedPointsBuffer;
 
@@ -165,6 +209,9 @@ public:
 		}
 	}
 	
+	/*
+	Erase all points that have less than minView hits.
+	*/
 	std::size_t filterNumviews(const short minView) {
 		auto it = this->surfacePoints.treeIteratorBegin();
 		std::vector<cv::Vec3i> toRemove;
@@ -180,6 +227,10 @@ public:
 		return removeVoxelsInList<Levels>(toRemove);
 	}
 
+	/*
+	Erase all points that have less than minView hits if they are also in check. (check is allowed to
+	contain voxels that are actually not part of the pointcloud)
+	*/
 	std::size_t filterNumviews(const short minView, const std::vector<ScenePoint>& check) {
 		std::vector<cv::Vec3i> toRemove;
 

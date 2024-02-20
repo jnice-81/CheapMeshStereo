@@ -9,10 +9,18 @@
 #include "helpers.h"
 #include "View.h"
 #include "Scene.h"
-//#include "PoissonSurfaceReconstruct.h"
 
+
+/*
+A class that supports finding depth points between two images. Images need to have Intrinsics and Extrinsics defined.
+*/
 class Reconstruct {
 public:
+	/*
+	Get the disparity that is associated with a particular depth
+	f: The focal length
+	T: The baseline (shift) between two cameras
+	*/
 	static inline double getDisparityForDepth(const double depth, const double f, const double T) {
 		/*
 		depth = f * T / disparity
@@ -20,10 +28,21 @@ public:
 		return f * T / depth;
 	}
 
+	/*
+	Get the depth for a particular disparity
+	f: The focal length
+	T: The baseline (shift) between two cameras
+	*/
 	static inline double getDepthForDisparity(const double disparity, const double f, const double T) {
 		return f * T / disparity;
 	}
 
+	/*
+		Returns the minimum disparity to obtain a certain level of precision.
+		f: The focal length
+		T: The baseline (shift) between two cameras
+		precision: The required precision
+	*/
 	static inline double getMinDisparityForPrecision(const double f, const double T, const double precision) {
 		/*
 		depth = f * T / disparity
@@ -33,10 +52,23 @@ public:
 		return (-precision + std::sqrt(precision * precision + 4 * precision * f * T)) / (2 * precision);
 	}
 
+	/*
+		Essentially: Rectifies to views, computes a disparity image using block matching and projects the points back to 3d. 
+		Only horizontal planar motion is supported, but in principle vertical planar motion could be integrated relativly easily.
+		Method will simply return without adding points if the motion type is not supported.
+		v1: The first view
+		v2: The second view
+		out: A vector to which all detected points are added (in 3d global coordinate system)
+		minDepth: The minimum depth to support
+		maxDepth: The maximum depth to support
+		precision: The minimum precision required for a point to be added. For a given baseline between two images this effectively 
+			truncates the maximum distance for which points will be added (because for points farther away the maximum possible error
+			is larger than precision
+		maxDisp: The maximum allowed disparity. The actual maximum disparity is controlled by minDepth, but maxDisp acts as a hard threshold.
+			Must be dividable by 16.
+	*/
 	static void compute3d(const View &v1, const View &v2, std::vector<ScenePoint> &out,
 		double minDepth, double maxDepth, double precision, size_t maxDisp = 16 * 15) {
-
-		MsClock csc;
 
 		cv::Rect roiR = cv::Rect(0, 0, 3, 3);
 		cv::Rect roiT = cv::Rect(3, 0, 1, 3);
@@ -69,7 +101,6 @@ public:
 		if (maxDispDepth > maxDisp) {
 			maxDispDepth = maxDisp;
 		}
-		std::cout << minDispPrec << " " << maxDispDepth << " " << shift << std::endl;
 
 		if (minDispPrec >= maxDispDepth) {
 			std::cout << "No valid disparity for the given precision and depth. Aborted";
@@ -91,8 +122,6 @@ public:
 
 		rectified_image1 = rectified_image1(disparityRoi);
 		rectified_image2 = rectified_image2(disparityRoi);
-
-		csc.printAndReset("Rectify");
 
 		int ndisp = maxDispDepth;
 		int mindisp;
@@ -118,59 +147,12 @@ public:
 
 		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
-
-#ifdef DEBUG_ANDROID
-		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vl" + std::to_string(dbgidx) + ".jpg", rectified_image1(disparityRoi));
-		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vr" + std::to_string(dbgidx) + ".jpg", rectified_image2(disparityRoi));
-#endif
-
 		
 		cv::Mat disparity;
 		blocksearcher->compute(rectified_image1, rectified_image2, disparity);
 		disparity /= 16;
 
-		csc.printAndReset("Disparity");
-		
-
-#ifdef DEBUG_ANDROID
-		cv::Mat exportDisp;
-		cv::normalize(disparity, exportDisp, 0, 255, cv::NORM_MINMAX);
-		disparity.convertTo(exportDisp, CV_8U);
-		cv::imwrite("/data/data/com.google.ar.core.examples.c.helloar/vdisp" + std::to_string(dbgidx) + ".jpg", exportDisp);
-#endif
-
-		//std::vector<ScenePoint> tmpOut;
 		addDisparity(disparity, Q, rR1, v1.extrinsics, minDispPrec, mindisp-1, out, disparityRoi.x, disparityRoi.y);
-
-		/*
-		Scene<1, bool> u(0.01, std::vector<int>({ 5 }));
-		for (const ScenePoint& g : tmpOut) {
-			u.addPoint(g);
-		}
-		u.export_xyz("tmp.xyz");
-		
-		csc.printAndReset("Add3d");
-
-		cv::imshow("l", rectified_image1);
-		cv::imshow("r", rectified_image2);
-		cv::Mat exportDisp;
-		disparity.convertTo(exportDisp, CV_32F);
-		for (int i = 0; i < exportDisp.rows; i++) {
-			for (int j = 0; j < exportDisp.cols; j++) {
-				double d;
-				if (std::abs(exportDisp.at<float>(i, j)) < minDispPrec || exportDisp.at<float>(i, j) == mindisp - 1) {
-					d = 0;
-				}
-				else {
-					d = getDepthForDisparity(std::abs(exportDisp.at<float>(i, j)), f, std::abs(shift));
-				}
-				exportDisp.at<float>(i, j) = d;
-			}
-			}
-		cv::normalize(exportDisp, exportDisp, 0, 255, cv::NORM_MINMAX, CV_8U);
-		cv::imshow("disp", exportDisp);
-		cv::waitKey(0);
-		*/
 
 	}
 
@@ -179,6 +161,18 @@ private:
 		return (currentWriteLine + i) % bufferLines;
 	}
 
+	/*
+		Reprojects disparity, estimates normals based on a very simple plane fitting approach, and adds points to out
+		disparity: The disparity image
+		Q: The disparity to depth matrix
+		Rrectify: the rectification matrix associated with the image from which the disparities are generated
+		extrinsics: The extrinsics matrix associated with the image from which the disparities are generated
+		minDisp: The minimum disparity for which points will be added
+		undefined: A number indicating which disparity value corresponds to undefined (no disparity found)
+		out: The vector of ScenePoints which is filled by the method
+		addX: A value to add to the x component of the pixel coordinate when reprojecting (Usefull if parts of the image were truncated)
+		addY: A value to add to the y component of the pixel coordinate when reprojecting (Usefull if parts of the image were truncated)
+	*/
 	static void addDisparity(const cv::Mat& disparity, const cv::Mat& Q, const cv::Mat& Rrectify, const cv::Mat& extrinsics,
 		const int minDisp, const int undefined, std::vector<ScenePoint>& out, int addX, int addY) {
 		assert(disparity.type() == CV_16S);

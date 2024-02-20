@@ -1,5 +1,8 @@
 #pragma once
 
+/*
+A class storing an image, it's associated intrinsics and extrinsics, both in opencv format.
+*/
 class View {
 public:
     View(cv::Mat image, cv::Mat intrinsics, cv::Mat extrinsics)
@@ -18,6 +21,10 @@ public:
     cv::Mat_<double> intrinsics;
     cv::Mat_<double> extrinsics;
 
+
+    /*
+    Convenience function converting standard opengl extrinsics to opencv extrinsics.
+    */
     static cv::Mat_<double> oglExtrinsicsToCVExtrinsics(const cv::Mat &extrinsics) {
         cv::Mat_<double> ogl_to_cv = cv::Mat_<double>(4, 4);
         ogl_to_cv <<
@@ -29,6 +36,9 @@ public:
         return extrinsics.mul(ogl_to_cv);
     }
 
+    /*
+    Convenience function converting standard opengl intrinsics to opencg intrinsics.
+    */
     static cv::Mat_<double> oglIntrinsicsToCVIntrinsics(const cv::Mat &intrinsics, const cv::Size imgsize) {
         cv::Mat_<double> cvintrinsics = cv::Mat_<double>(3, 3);
         cvintrinsics <<
@@ -38,6 +48,9 @@ public:
         return cvintrinsics;
     }
 
+    /*
+    Get the relative rotation and translation between two extrinsics matrices.
+    */
     static std::pair<float, float> getRelativeRotationAndTranslation(const cv::Mat& extrinsics1, const cv::Mat &extrinsics2) {
         const cv::Rect roiR = cv::Rect(0, 0, 3, 3);
         const cv::Rect roiT = cv::Rect(3, 0, 1, 3);

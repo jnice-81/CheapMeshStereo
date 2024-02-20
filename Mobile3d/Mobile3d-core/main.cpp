@@ -30,7 +30,7 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
 }
 
 void surface_test() {
-    Scene<3, bool> gm(0.03, std::vector<int>({ 5, 5, 4 }));
+    Scene<3> gm(0.03, std::vector<int>({ 5, 5, 4 }));
     gm.import_xyz("h.xyz");
 
     SurfaceReconstruct r(0.04, 4, 3.0f);
@@ -52,7 +52,7 @@ void generate_test() {
     const std::string base_dir = "C:/Users/Admin/Desktop/Mobile3d/3dmodels";
 #endif
 
-    Scene<3, bool> gm(0.02, std::vector<int>({ 10, 20, 2 }));
+    Scene<3> gm(0.02, std::vector<int>({ 10, 20, 2 }));
 
     const std::string project_name = "imagestream/chair";
     const std::string projectfolder = base_dir + "/" + project_name;
@@ -96,6 +96,7 @@ void generate_test() {
 int main()
 {
     generate_test();
+    //surface_test();
 
     return 0;
 }
