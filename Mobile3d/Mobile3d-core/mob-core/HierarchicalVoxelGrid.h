@@ -323,11 +323,20 @@ public:
 	};
 
 	HierachicalVoxelGrid(double voxelSideLength, std::vector<int> indexBlocks) : surfacePoints(this) {
+		this->init(voxelSideLength, indexBlocks);
+	}
+
+	void init(double voxelSideLength, std::vector<int> indexBlocks) {
 		preprocVoxelSizes.resize(1 + indexBlocks.size());
 		preprocVoxelSizes[indexBlocks.size() - 1 + 1] = voxelSideLength;
 		for (int j = (int)preprocVoxelSizes.size() - 2; j >= 0; j--) {
 			preprocVoxelSizes[j] = preprocVoxelSizes[j + 1] * indexBlocks[j];
 		}
+	}
+
+	void reset(double voxelSideLength, std::vector<int> indexBlocks) {
+		this->surfacePoints.clear();
+		this->init(voxelSideLength, indexBlocks);
 	}
 
 	// Level: Starts at 0 goes downward

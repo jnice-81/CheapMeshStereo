@@ -43,6 +43,7 @@
 #include <Reconstruct.h>
 #include <SlidingWindow.h>
 #include <dense_point_renderer.h>
+#include <SurfaceReconstruct.h>
 
 namespace hello_ar {
 
@@ -76,6 +77,8 @@ class HelloArApplication {
                    bool useDepthForOcclusion);
 
   void ComputeSurface();
+
+  void ChangeGranularity(float granularity);
 
  private:
   glm::mat3 GetTextureTransformMatrix(const ArSession* session,
@@ -113,6 +116,7 @@ class HelloArApplication {
   std::future<void> reconstructionFuture;
   int dbgidx = 0;
   std::fstream dbgexport;
+  bool stopFutureComputations = false;
 
   void ConfigureSession();
 };

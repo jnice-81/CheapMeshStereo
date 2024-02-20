@@ -57,6 +57,8 @@ public class JniInterface {
 
   public static native void computeSurface(long nativeApplication);
 
+  public static native void changeGranularity(long nativeApplication, float granularity);
+
   public static Bitmap loadImage(String imageName) {
 
     try {
@@ -70,4 +72,6 @@ public class JniInterface {
   public static void loadTexture(int target, Bitmap bitmap) {
     GLUtils.texImage2D(target, 0, bitmap, 0);
   }
+
+
 }

@@ -183,6 +183,39 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
         ArPointCloud_release(ar_point_cloud);
     }
 
+    // Analyze the point cloud to find max and min depth
+    int32_t number_of_points = 0;
+    ArPointCloud_getNumberOfPoints(ar_session_, ar_point_cloud, &number_of_points);
+    float near = 100;
+    float far = 0;
+    double meandist = 0;
+    if (number_of_points > 0) {
+        const float* point_cloud_data;
+        ArPointCloud_getData(ar_session_, ar_point_cloud, &point_cloud_data);
+
+        cv::Mat c = glm4x4ToCvMat(glm::inverse(view_mat));
+        cv::Vec3f pos = c(cv::Rect(3, 0, 1, 3));
+
+        for (int32_t i = 0; i < number_of_points; i++) {
+            cv::Vec3f p = cv::Vec3f(&point_cloud_data[i * 4]);
+            float dist = cv::norm(p - pos);
+            if (dist < near) {
+                near = dist;
+            }
+            if (dist > far) {
+                far = dist;
+            }
+            meandist += dist;
+        }
+    }
+    else {
+        return;
+    }
+    near = std::clamp(near - 0.3f, 0.3f, 100.0f);
+    far = std::clamp(far + 1.0f, 0.3f, 100.0f);
+    meandist /= number_of_points;
+
+
   cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
   std::future_status reconstruction_status;
 
@@ -198,7 +231,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
   if (slideWindow.size() > 0) {
       relativePose = View::getRelativeRotationAndTranslation(extrinsics, slideWindow.getView(0).extrinsics);
   }
-  if (slideWindow.size() == 0 || relativePose.first >= 0.2 || relativePose.second >= 0.1) {
+  float minBaseline = meandist / 10.0;
+  if (slideWindow.size() == 0 || relativePose.first >= 0.2 || relativePose.second >= minBaseline) {
       LOGI("Adding Image");
       const GLuint texId = background_renderer_.GetTextureId();
       glBindTexture(GL_TEXTURE_EXTERNAL_OES, texId);
@@ -231,7 +265,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       int currentIndex = slideWindow.add_image(current);
 
       std::set<int> exbaselines;
-      const float ImageSamplingDensity = 0.2;
+      float ImageSamplingDensity = minBaseline;
       for (int i = 1; i < slideWindow.size(); i++) {
           auto rel = View::getRelativeRotationAndTranslation(slideWindow.getView(-i).extrinsics, current.extrinsics);
 
@@ -258,7 +292,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     }
 
     // Try to start a new computation if none is running
-  if (bufferedComputations.size() > 0 && reconstruction_status == std::future_status::ready) {
+  if (bufferedComputations.size() > 0 && reconstruction_status == std::future_status::ready && !this->stopFutureComputations) {
       long lastDefinedImage = (long)slideWindow.getCurrentImageIndex() - (long)slideWindow.size() + 1;
       bool isComputationRunning = false;
       while (bufferedComputations.size() > 0) {
@@ -277,21 +311,19 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
           View v1 = slideWindow.getViewByImageIndex(currentComputation.first);
           View v2 = slideWindow.getViewByImageIndex(currentComputation.second);
 
-          reconstructionFuture = std::async(std::launch::async, [this, v1, v2] {
+          reconstructionFuture = std::async(std::launch::async, [this, v1, v2, near, far] {
               auto start_time = std::chrono::high_resolution_clock::now();
               dbgidx++;
               LOGI("Starting computation %d, %d", currentComputation.first, currentComputation.second);
 
               reconstructorOutput.emplace_back();
-              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), 1.0, 10, collectedScene.retrieveVoxelSidelength(3), 16 * 15);
+              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), near, far, collectedScene.retrieveVoxelSidelength(3), 16 * 15);
 
-              //unfiltered_points += reconstructorOutput.back().size();
+              unfiltered_points += reconstructorOutput.back().size();
               updatedPointsForRender.push_back(reconstructorOutput.back());
               collectedScene.addAllSingleCount(reconstructorOutput.back());
 
-
-
-              if (reconstructorOutput.size() >= 20) {
+              if (reconstructorOutput.size() >= 30) {
                   auto it = reconstructorOutput.begin();
                   int ud = collectedScene.filterNumviews(2, *it);
                   updatedPointsForRender.push_back(*it);
@@ -320,13 +352,26 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 }
 
  void HelloArApplication::ComputeSurface() {
-    //collectedScene.filterConfidence(4);
-    //collectedScene.filterOutliers(10, 200);
-    //collectedScene.filterOutliers<1>(0, 200);
-    //collectedScene.filterOutliers<2>(1, 40);
+    stopFutureComputations = true;
+    reconstructionFuture.wait();
+    LOGI("STarted");
+
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
+    SurfaceReconstruct reconstruct(collectedScene.retrieveVoxelSidelength(3) * 1.3, 4, 3.0);
+    reconstruct.computeSurface(collectedScene);
+    reconstruct.exportObj("/data/data/com.google.ar.core.examples.c.helloar/out.obj");
     //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(collectedScene, "/data/data/com.google.ar.core.examples.c.helloar/out.ply");
     LOGI("Done");
+}
+
+void HelloArApplication::ChangeGranularity(float granularity) {
+    if (reconstructionFuture.valid()) {
+        reconstructionFuture.wait();
+    }
+
+    collectedScene.reset(granularity, std::vector<int>({1, 1, 2}));
+    densePointRenderer_.reset();
+    densePointRenderer_.setScale(granularity * 30);
 }
 
 

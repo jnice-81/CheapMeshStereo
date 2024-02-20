@@ -91,6 +91,13 @@ JNI_METHOD(void, computeSurface)
   native(native_application)->ComputeSurface();
 }
 
+JNI_METHOD(void, changeGranularity)
+(JNIEnv *, jclass ,
+jlong native_application,
+jfloat granularity) {
+   native(native_application)->ChangeGranularity(granularity);
+}
+
 JNIEnv *GetJniEnv() {
   JNIEnv *env;
   jint result = g_vm->AttachCurrentThread(&env, nullptr);
@@ -103,3 +110,4 @@ jclass FindClass(const char *classname) {
 }
 
 }  // extern "C"
+

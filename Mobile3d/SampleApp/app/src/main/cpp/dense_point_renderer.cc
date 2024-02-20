@@ -56,6 +56,7 @@ void dense_point_renderer::InitializeGLContent() {
     glGenVertexArrays(1, &VAO);
 
     mvp_uniform = glGetUniformLocation(shaderProgram, "projectionview");
+    scale_uniform = glGetUniformLocation(shaderProgram, "scale");
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(squareVertices), squareVertices, GL_STATIC_DRAW);
@@ -65,6 +66,21 @@ void dense_point_renderer::InitializeGLContent() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     hello_ar::util::CheckGlError("Something went wrong during initialization of dense point renderer");
+}
+
+void dense_point_renderer::reset() {
+    if (data != nullptr) {
+        delete[] data;
+    }
+    data = nullptr;
+    dataSize = 0;
+    actualDataSize = 0;
+    voxelsToIndex.clear();
+    indexToVoxel.clear();
+}
+
+void dense_point_renderer::setScale(float scale) {
+    drawscale = scale;
 }
 
 void dense_point_renderer::draw(Scene<SceneMaxLevel, bool> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix) {
@@ -162,6 +178,7 @@ void dense_point_renderer::draw(Scene<SceneMaxLevel, bool> &scene, const std::li
     glVertexAttribDivisor(2, 1);
 
     glUniformMatrix4fv(mvp_uniform, 1, GL_FALSE, glm::value_ptr(mvp_matrix));
+    glUniform1f(scale_uniform, drawscale);
 
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, actualDataSize);
 

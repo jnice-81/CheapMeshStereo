@@ -36,6 +36,7 @@ class dense_point_renderer {
         layout(location = 2) in vec3 aInstanceNormal;
 
         uniform mat4 projectionview;
+        uniform float scale;
 
         out vec4 color;
 
@@ -55,11 +56,10 @@ class dense_point_renderer {
                 R = (2.0 * mat3(t * t.x, t * t.y, t * t.z) / s) - mat3(1.0);
             }
 
-            vec4 modelPos = vec4(R * (0.02 * aPos) + aInstancePos, 1.0);
+            vec4 modelPos = vec4(R * (0.02 * aPos) * scale + aInstancePos, 1.0);
             gl_Position = projectionview * modelPos;
 
-            float c = abs(dot(norotn, n));
-            color = c * vec4(1.0, 0.0, 0.0, 1.0);
+            color = vec4(0.7, 0.7, 0.7, 1.0);
 
         }
     )";
@@ -84,6 +84,7 @@ class dense_point_renderer {
     GLuint VBO, VAO, EBO, InstanceBuffer;
     GLuint shaderProgram;
     GLuint mvp_uniform;
+    GLuint scale_uniform;
 
     InstanceData *data = nullptr;
     unsigned int dataSize = 0;
@@ -91,11 +92,16 @@ class dense_point_renderer {
     std::unordered_map<cv::Vec3i, size_t, VecHash> voxelsToIndex;
     std::unordered_map<size_t, cv::Vec3i> indexToVoxel;
     static const int SceneMaxLevel = 3;
+    float drawscale = 1.0;
 
 public:
     void InitializeGLContent();
 
+    void setScale(float scale);
+
     void draw(Scene<SceneMaxLevel, bool> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix);
+
+    void reset();
 
     ~dense_point_renderer();
 };

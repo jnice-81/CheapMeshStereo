@@ -16,19 +16,36 @@
 
 package com.google.ar.core.examples.c.helloar;
 
+import static java.lang.System.exit;
+
+import android.content.ContentValues;
+import android.content.Context;
 import android.hardware.display.DisplayManager;
+import android.net.Uri;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
+import android.widget.SeekBar;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+
+import java.io.Console;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
@@ -42,6 +59,19 @@ public class HelloArActivity extends AppCompatActivity
 
   // Opaque native pointer to the native application instance.
   private long nativeApplication;
+
+  public static void copyFile(File sourceFile, File destFile) throws IOException {
+    InputStream inputStream = new FileInputStream(sourceFile);
+    OutputStream outputStream = new FileOutputStream(destFile);
+    byte[] buffer = new byte[1024];
+    int length;
+    while ((length = inputStream.read(buffer)) > 0) {
+      outputStream.write(buffer, 0, length);
+    }
+    outputStream.flush();
+    outputStream.close();
+    inputStream.close();
+  }
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -62,10 +92,44 @@ public class HelloArActivity extends AppCompatActivity
             new View.OnClickListener() {
               @Override
               public void onClick(View v) {
+
                 JniInterface.computeSurface(nativeApplication);
+
+                File sourceobj = new File("/data/data/com.google.ar.core.examples.c.helloar/out.obj");
+                File destobj = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "output.obj");
+                File sourcexyz = new File("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
+                File destxyz = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "output.xyz");
+                try {
+                  copyFile(sourceobj, destobj);
+                  copyFile(sourcexyz, destxyz);
+                } catch (Exception e) {
+                  e.printStackTrace();
+                }
+                exit(0);
               }
             }
     );
+
+    SeekBar slider = findViewById(R.id.slider);
+    slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+
+      private float granularity = 0.3f;
+      @Override
+      public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+        // Handle progress change
+        granularity = (float) (progress + 1) / (2.0f * 100f); // Convert progress to value
+      }
+
+      @Override
+      public void onStartTrackingTouch(SeekBar seekBar) {
+        // Handle tracking touch start
+      }
+
+      @Override
+      public void onStopTrackingTouch(SeekBar seekBar) {
+        JniInterface.changeGranularity(nativeApplication, granularity);
+      }
+    });
 
     JniInterface.assetManager = getAssets();
     nativeApplication = JniInterface.createNativeApplication(getAssets());
