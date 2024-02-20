@@ -179,18 +179,14 @@ private:
 		return (currentWriteLine + i) % bufferLines;
 	}
 
-	static void addDisparity(const cv::Mat &disparity, const cv::Mat &Q, const cv::Mat &Rrectify, const cv::Mat &extrinsics, 
-		const int minDisp, const int undefined, std::vector<ScenePoint> &out, int addX, int addY) {
+	static void addDisparity(const cv::Mat& disparity, const cv::Mat& Q, const cv::Mat& Rrectify, const cv::Mat& extrinsics,
+		const int minDisp, const int undefined, std::vector<ScenePoint>& out, int addX, int addY) {
 		assert(disparity.type() == CV_16S);
 
 		cv::Mat Rrectify4x4 = cv::Mat::zeros(4, 4, CV_64F);
 		Rrectify4x4(cv::Rect(0, 0, 3, 3)) = Rrectify.t();
 		Rrectify4x4.at<double>(3, 3) = 1;
 		cv::Mat tmp = extrinsics.inv() * Rrectify4x4 * Q;
-		cv::Vec4d camPosTmp;
-		((cv::Mat)extrinsics.inv().col(3)).convertTo(camPosTmp, CV_64F);
-		cv::Vec3d camPosTmp2(camPosTmp.val);
-		cv::Vec3f camPos = camPosTmp2;
 		cv::Matx44d Pback;
 		tmp.convertTo(Pback, CV_64F);
 
@@ -235,53 +231,53 @@ private:
 					}
 
 					cv::Vec3d forPoint = normalBufferPoints[currentIdxY][currentIdxX];
-					std::vector<cv::Vec3f> points;
+					cv::Vec3d left = vecZeros<cv::Vec3d>();
+					cv::Vec3d bottom = vecZeros<cv::Vec3d>();
+					int countDefLeft = 0;
+					int countDefBottom = 0;
 
 					for (int k = 0; k < bufferLines; k++) {
 						int yidx = virtualToRealNormalBufferIdx(k, currentWriteLine, bufferLines);
-						for (int z = 0; z < bufferLines -1; z++) {
+						for (int z = 0; z < bufferLines - 1; z++) {
 							int xidx = z + j;
+							int nextX = xidx + 1;
 
-							if (isNormalBufferDefined[yidx][xidx])  {
-								points.push_back(normalBufferPoints[yidx][xidx]);
+							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[yidx][nextX]) {
+								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[yidx][nextX];
+								left += c / cv::norm(c);
+								countDefLeft += 1;
 							}
 						}
 					}
 
-					if (points.size() >= minimumAvailable) {
+					for (int k = 0; k < bufferLines - 1; k++) {
+						int yidx = virtualToRealNormalBufferIdx(k, currentWriteLine, bufferLines);
+						int nextY = virtualToRealNormalBufferIdx(k + 1, currentWriteLine, bufferLines);
+						for (int z = 0; z < bufferLines; z++) {
+							int xidx = z + j;
 
-						cv::Vec3d mean = cv::Vec3d::zeros();
-						for (const auto& g : points) {
-							mean += g;
+							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[nextY][xidx]) {
+								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[nextY][xidx];
+								bottom += c / cv::norm(c);
+								countDefBottom += 1;
+							}
 						}
-						mean = mean * (1.0 / points.size());
-						cv::Mat A(3, points.size(), CV_32F);
-						for (int i = 0; i < points.size(); i++) {
-							cv::Vec3f p = points[i] - (cv::Vec3f)mean;
-							A.at<float>(0, i) = p[0];
-							A.at<float>(1, i) = p[1];
-							A.at<float>(2, i) = p[2];
-						}
+					}
 
-						cv::SVD svd(A);
+					if (countDefBottom >= minimumAvailable && countDefLeft >= minimumAvailable) {
+						left /= countDefLeft;
+						bottom /= countDefBottom;
 
-						cv::Vec3f n = svd.u.col(2);
+						cv::Vec3f n = -left.cross(bottom);
 						n = n / cv::norm(n);
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
-						cv::Vec3f toCamera = camPos - p;
-						toCamera = toCamera / cv::norm(toCamera);
-						float d = n.dot(toCamera);
-						if (d < 0) {
-							n = -n;
-							d = -d;
-						}
 
-						if (d > 0.3) {
-							out.emplace_back(p, n, 1);
-						}
+						out.emplace_back(p, n, 1.0f);
 					}
 				}
 			}
 		}
 	}
+
+
 };

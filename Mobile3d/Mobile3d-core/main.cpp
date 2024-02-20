@@ -83,20 +83,19 @@ void generate_test() {
                 for (int i = 1; i < 5; i++) {
                     Reconstruct::compute3d(slideWindow.getView(0), slideWindow.getView(-i), tmp, 0.5, 5, 0.02);
                     gm.addAllSingleCount(tmp);
-                    gm.filterNumviews(2, tmp);
                     tmp.clear();
                 }
             }
         }
     }
-    //gm.filterNumviews(2);
+    gm.filterNumviews(2);
 
     gm.export_xyz("h.xyz");
 }
 
 int main()
 {
-    surface_test();
+    generate_test();
 
     return 0;
 }
