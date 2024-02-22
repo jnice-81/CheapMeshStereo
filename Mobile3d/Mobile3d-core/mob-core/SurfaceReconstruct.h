@@ -8,12 +8,6 @@
 #include "HierarchicalVoxelGrid.h"
 #include "Scene.h"
 
-constexpr int OnLevel = 0;
-constexpr int Levels = 1;
-const int CornerCacheSize = 30000;
-const int NormalsCacheSize = 5000;
-typedef Scene<Levels> SceneType;
-
 class SurfaceVoxel {
 public:
 	SurfaceVoxel()
@@ -45,7 +39,12 @@ public:
 	}
 };
 
+
+template<int OnLevel, int Levels>
 class SurfaceReconstruct {
+public:
+	typedef Scene<Levels> SceneType;
+
 private:
 	struct VecPairHasher {
 		std::size_t operator()(const std::pair<cv::Vec3i, cv::Vec3i>& p) const {
@@ -62,6 +61,8 @@ private:
 	float minweight;
 	float scalefactor;
 	float bias;
+	int CornerCacheSize = 30000;
+	int NormalsCacheSize = 5000;
 	HierachicalVoxelGrid<1, SurfaceVoxel> svoxel;
 
 	/*
@@ -134,49 +135,6 @@ private:
 		}
 	}
 
-	void findNeighborsFor(const cv::Vec3f p, const float l1radius, SceneType& scene, std::vector<SceneType::TreeIterator<OnLevel, Levels>>& out) const {
-		cv::Vec3f l1radi;
-		cv::Vec3f cornerQuad;
-
-		auto tmp = cv::Vec3f(l1radius, l1radius, l1radius);
-		cornerQuad = p - tmp;
-		l1radi = 2 * tmp;
-		float voxelSidelength = scene.retrieveVoxelSidelength(OnLevel);
-		const float numStabilityMargin = 0.1;
-		float numericalStabilityLength = numStabilityMargin * voxelSidelength;
-
-		cv::Vec3f t = cornerQuad / voxelSidelength;
-		for (int i = 0; i < 3; i++) {
-			float divInt = std::abs(t[i] - roundf(t[i]));
-			if (divInt < numStabilityMargin) {
-				cornerQuad[i] -= numericalStabilityLength;
-				l1radi[i] += 2 * numericalStabilityLength;
-			}
-		}
-
-		std::unordered_set<cv::Vec3i, VecHash> select;
-
-		for (int x = 0; x <= (int)(l1radi[0] / voxelSidelength) + 1; x++) {
-			for (int y = 0; y <= (int)(l1radi[1] / voxelSidelength) + 1; y++) {
-				for (int z = 0; z <= (int)(l1radi[2] / voxelSidelength) + 1; z++) {
-					cv::Vec3f q = cv::Vec3f(
-						std::clamp(x * voxelSidelength, 0.0f, l1radi[0]),
-						std::clamp(y * voxelSidelength, 0.0f, l1radi[1]),
-						std::clamp(z * voxelSidelength, 0.0f, l1radi[2])) + cornerQuad;
-					select.insert(scene.retrieveVoxel(q, OnLevel));
-				}
-			}
-		}
-
-		out.reserve(select.size());
-		for (const auto& g : select) {
-			auto it = scene.surfacePoints.findVoxel<OnLevel>(scene.retrievePoint(g, OnLevel));
-			if (!it.isEnd()) {
-				out.push_back(it);
-			}
-		}
-	}
-
 	inline float lininp(float x1, float x2, float y1, float y2, float t) const {
 		return y1 + ((y2 - y1) / (x2 - x1)) * (t - x1);
 	}
@@ -184,7 +142,7 @@ private:
 	//template<int OnLevel>
 	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s, SceneType& scene) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
-		findNeighborsFor(p, s, scene, neighbors);
+		scene.findNeighborsFor(p, s, neighbors);
 
 		double weightSum = 0;
 		double weightedValueSum = 0;
@@ -217,7 +175,7 @@ private:
 
 	cv::Vec3d computeImplicitNormal(const cv::Vec3f& p, double s, SceneType& scene) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
-		findNeighborsFor(p, s, scene, neighbors);
+		scene.findNeighborsFor(p, s, neighbors);
 
 		cv::Vec3f result;
 
@@ -437,8 +395,9 @@ private:
 
 public:
 
-	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0, float bias = -1.0):
-		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), bias(bias)
+	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0, const int CornerCacheSize = 30000, float bias = -1.0, const int NormalsCacheSize = 0):
+		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })),
+		bias(bias), CornerCacheSize(CornerCacheSize), NormalsCacheSize(NormalsCacheSize)
 	{
 		cornerCache.reserve(CornerCacheSize + 8);
 		normalsCache.reserve(NormalsCacheSize + 12);

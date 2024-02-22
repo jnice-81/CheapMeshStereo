@@ -34,7 +34,7 @@ void surface_test() {
     gm.import_xyz(base + "out.xyz");
 
     gm.normalizeNormals();
-    SurfaceReconstruct r(0.001, 1, 3.0f, -1);
+    SurfaceReconstruct<0, 1> r(0.001, 1, 3.0f, -1);
 
     std::cout << "Starting" << std::endl;
     MsClock c;

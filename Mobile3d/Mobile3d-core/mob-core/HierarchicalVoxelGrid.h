@@ -476,6 +476,50 @@ public:
 		return this->preprocVoxelSizes[level];
 	}
 
+	template <int OnLevel>
+	void findNeighborsFor(const cv::Vec3f p, const float l1radius, std::vector<TreeIterator<OnLevel, Levels>>& out) {
+		cv::Vec3f l1radi;
+		cv::Vec3f cornerQuad;
+
+		auto tmp = cv::Vec3f(l1radius, l1radius, l1radius);
+		cornerQuad = p - tmp;
+		l1radi = 2 * tmp;
+		float voxelSidelength = this->retrieveVoxelSidelength(OnLevel);
+		const float numStabilityMargin = 0.1;
+		float numericalStabilityLength = numStabilityMargin * voxelSidelength;
+
+		cv::Vec3f t = cornerQuad / voxelSidelength;
+		for (int i = 0; i < 3; i++) {
+			float divInt = std::abs(t[i] - roundf(t[i]));
+			if (divInt < numStabilityMargin) {
+				cornerQuad[i] -= numericalStabilityLength;
+				l1radi[i] += 2 * numericalStabilityLength;
+			}
+		}
+
+		std::unordered_set<cv::Vec3i, VecHash> select;
+
+		for (int x = 0; x <= (int)(l1radi[0] / voxelSidelength) + 1; x++) {
+			for (int y = 0; y <= (int)(l1radi[1] / voxelSidelength) + 1; y++) {
+				for (int z = 0; z <= (int)(l1radi[2] / voxelSidelength) + 1; z++) {
+					cv::Vec3f q = cv::Vec3f(
+						std::clamp(x * voxelSidelength, 0.0f, l1radi[0]),
+						std::clamp(y * voxelSidelength, 0.0f, l1radi[1]),
+						std::clamp(z * voxelSidelength, 0.0f, l1radi[2])) + cornerQuad;
+					select.insert(this->retrieveVoxel(q, OnLevel));
+				}
+			}
+		}
+
+		out.reserve(select.size());
+		for (const auto& g : select) {
+			auto it = this->surfacePoints.findVoxel<OnLevel>(this->retrievePoint(g, OnLevel));
+			if (!it.isEnd()) {
+				out.push_back(it);
+			}
+		}
+	}
+
 	/*
 	The actual data storage variable.
 	*/
