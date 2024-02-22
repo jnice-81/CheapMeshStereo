@@ -29,12 +29,15 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
 }
 
 void surface_test() {
-    Scene<1> gm(0.001, std::vector<int>({ 4 }));
-    std::string base = "C:/Users/Admin/Desktop/tests/stanford-bunny(PoissonRecon)/";
+    Scene<1> gm(0.01, std::vector<int>({ 4 }));
+    std::string base = "C:/Users/Admin/Desktop/tests/stiefel/";
     gm.import_xyz(base + "out.xyz");
 
+    gm.filterNumviews(2);
+    gm.export_xyz(base + "h.xyz");
+
     gm.normalizeNormals();
-    SurfaceReconstruct<0, 1> r(0.001, 1, 3.0f, -1);
+    SurfaceReconstruct<0, 1> r(gm.retrieveVoxelSidelength(1), 1, 3.0f, -1);
 
     std::cout << "Starting" << std::endl;
     MsClock c;

@@ -8,19 +8,10 @@
 #include "HierarchicalVoxelGrid.h"
 #include "Scene.h"
 
-class SurfaceVoxel {
-public:
-	SurfaceVoxel()
-	{
-		for (int i = 0; i < 3; i++) {
-			faces[i] = false;
-		}
-	}
 
-	cv::Vec3f pos;
-	bool faces[3];
-};
-
+/*
+An array that can be copied.
+*/
 template<typename T, int size>
 class CopyArray {
 public:
@@ -39,13 +30,44 @@ public:
 	}
 };
 
-
+/*
+Class for generating meshes from oriented pointclouds (stored as Scene type).
+OnLevel: On Which level of the hierarchy of the Scene to search for closeby points. 
+	Ideally the voxel sidelenght on that level should be slightly larger than scale (explained on constructor)
+	times the lowest level voxel size of the scene. (E.g. use the second lowest level for extraction, set its size to 4 if you set the scale to e.g. 3.5)
+Levels: How many levels the Scene has
+*/
 template<int OnLevel, int Levels>
 class SurfaceReconstruct {
 public:
 	typedef Scene<Levels> SceneType;
 
 private:
+	/*
+	A class storing the surfaces inside of a single voxel. 
+	pos: The position of the vertex inside the voxel.
+	faces: Three booleans storing if there are faces to neighbouring voxels.
+		There are at most 12 faces that could be connected to a single voxel - however if there is
+		a face or not is stored by each voxel in a way that ensures that the presence of a face is only
+		stored once. (If Voxel A has a face to voxel B, C, D then only one of them will store that face;
+		This is why one gets away with storing only three faces)
+	*/
+	class SurfaceVoxel {
+	public:
+		SurfaceVoxel()
+		{
+			for (int i = 0; i < 3; i++) {
+				faces[i] = false;
+			}
+		}
+
+		cv::Vec3f pos;
+		bool faces[3];
+	};
+
+	/*
+	Simple hash function for pairs of cv::Vec3i
+	*/
 	struct VecPairHasher {
 		std::size_t operator()(const std::pair<cv::Vec3i, cv::Vec3i>& p) const {
 			VecHash vh;
@@ -56,32 +78,20 @@ private:
 		}
 	};
 
+	// The caches storing the implicit value of the function for particular corners respectively edges where a face crosses
 	std::unordered_map<cv::Vec3i, std::pair<float, float>, VecHash> cornerCache;
 	std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
+
 	float minweight;
 	float scalefactor;
 	float bias;
 	int CornerCacheSize = 30000;
 	int NormalsCacheSize = 5000;
+	// The actual storage of the mesh
 	HierachicalVoxelGrid<1, SurfaceVoxel> svoxel;
 
-	/*
-	void exportImplicitVals(std::pair<float, float> implicitVals[2][2][2], cv::Vec3f zeroPoint, float sidelength) {
-		Scene<1, ScenePoint> e(0.001, std::vector<int>({ 5 }));
-		for (int x = 0; x < 2; x++) {
-			for (int y = 0; y < 2; y++) {
-				for (int z = 0; z < 2; z++) {
-					cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
-					e.addPoint(ScenePoint(p, cv::Vec3f(0, 1.0 * implicitVals[x][y][z].first), 1));
-				}
-			}
-		}
-		e.export_xyz("impl.xyz");
-	}
 
-	Scene<1, ScenePoint> exportImplNorm;
-	*/
-
+	// Loads all corner cache values for a voxel
 	inline void loadCache(const cv::Vec3i &voxel, bool implicitCacheValid[2][2][2], std::pair<float, float> implicitVals[2][2][2]) const {
 		for (int x = 0; x < 2; x++) {
 			for (int y = 0; y < 2; y++) {
@@ -99,6 +109,7 @@ private:
 		}
 	}
 
+	// Stores all corner cache values for a voxel
 	inline void storeCache(const cv::Vec3i& voxel, std::pair<float, float> implicitVals[2][2][2]) {
 		for (int x = 0; x < 2; x++) {
 			for (int y = 0; y < 2; y++) {
@@ -112,6 +123,7 @@ private:
 		}
 	}
 
+	// Load all normal cache values for a list of edges
 	inline void loadNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, std::vector<std::pair<cv::Vec3f, bool>>& out) {
 		for (const auto& idx : indizes) {
 			auto it = normalsCache.find(idx);
@@ -124,6 +136,7 @@ private:
 		}
 	}
 
+	// Store all normal cache values for a list of edges
 	inline void storeNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, const std::vector<std::pair<cv::Vec3f, bool>>& store) {
 		for (std::size_t i = 0; i < indizes.size(); i++) {
 			if (!store[i].second) {
@@ -135,11 +148,12 @@ private:
 		}
 	}
 
+	// Perform linear interpolation
 	inline float lininp(float x1, float x2, float y1, float y2, float t) const {
 		return y1 + ((y2 - y1) / (x2 - x1)) * (t - x1);
 	}
 
-	//template<int OnLevel>
+	// Compute the implicit value at p, assuming points have a scale of s
 	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s, SceneType& scene) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
 		scene.findNeighborsFor(p, s, neighbors);
@@ -173,6 +187,7 @@ private:
 		return std::make_pair(weightedValueSum, weightSum);
 	}
 
+	// Compute the implicit normal (first derivative of implicit function) at p assuming points have scale s
 	cv::Vec3d computeImplicitNormal(const cv::Vec3f& p, double s, SceneType& scene) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
 		scene.findNeighborsFor(p, s, neighbors);
@@ -217,16 +232,19 @@ private:
 		return cv::normalize(result);
 	}
 
+	// Find the point between 0 and 1 where a linear function crosses 0, if it has value v1 at 0 and v2 at 1
 	double linearAdapt(double v1, double v2) {
 		return -v1 / (v2 - v1);
 	}
 
+	// Computes a single SurfaceVoxel at a position
 	inline void computeSurfaceFor(const cv::Vec3i voxel, SceneType& scene, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors) {
 
 		SurfaceVoxel result;
 		float sidelength = svoxel.retrieveVoxelSidelength(1);
 		const float scale = scalefactor * scene.retrieveVoxelSidelength(Levels);
 
+		// Compute/load implicit values
 		bool implicitCacheValid[2][2][2];
 		std::pair<float, float> implicitVals[2][2][2];
 		
@@ -246,6 +264,8 @@ private:
 
 		storeCache(voxel, implicitVals);
 
+		// Determine points on the edges of the voxel where an edge passes trough
+		// (Function negative on one side, positive on the other and the weight is large enough at both sides)
 		std::vector<cv::Vec3f> changePoints;
 		changePoints.reserve(12);
 		std::vector<std::pair<cv::Vec3i, cv::Vec3i>> normalCacheIdx;
@@ -300,6 +320,7 @@ private:
 						changePoints.push_back(basepoint + linearAdapt(ck1.first, ck2.first) * edgevec);
 						normalCacheIdx.push_back(std::make_pair(voxel + p1, voxel + p2));
 
+						// Add the neighbors to which this voxel has an edge to the foundneighbors
 						cv::Vec3f neighborIterbase = basepoint + 0.5 * edgevec;
 						float sl = svoxel.retrieveVoxelSidelength(1);
 						for (int m = 0; m < 2; m++) {
@@ -331,15 +352,19 @@ private:
 			return;
 		}
 		else {
+			// Code above will add ourselfs as a neighbor if there is at least one face. This should be prevented.
 			foundneighbors.erase(voxel);
 		}
 
+		// Find the mean position of all edgecrossings of faces. This is a "good" position for the vertex
 		cv::Vec3f meanPos = cv::Vec3f::zeros();
 		for (int i = 0; i < changePoints.size(); i++) {
 			meanPos += changePoints[i];
 		}
 		meanPos = meanPos * (1.0 / changePoints.size());
 		
+		// If there is a positive bias try to compute the vertex position such that it "fits" the normals well.
+		// Otherwise simply directly use the meanPos.
 		if (bias >= 0) {
 			std::vector<std::pair<cv::Vec3f, bool>> loadedNormalCache;
 			loadedNormalCache.reserve(changePoints.size());
@@ -393,96 +418,8 @@ private:
 		svoxel.surfacePoints.insert_or_update(insert_point, result);
 	}
 
-public:
-
-	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0, const int CornerCacheSize = 30000, float bias = -1.0, const int NormalsCacheSize = 0):
-		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })),
-		bias(bias), CornerCacheSize(CornerCacheSize), NormalsCacheSize(NormalsCacheSize)
-	{
-		cornerCache.reserve(CornerCacheSize + 8);
-		normalsCache.reserve(NormalsCacheSize + 12);
-	}
-
-	void computeSurface(SceneType& scene) {
-		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
-		constexpr int CacheLocalityLevels = 2;
-		HierachicalVoxelGrid<CacheLocalityLevels, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
-
-		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			currentComputationVoxels.surfacePoints.insert_or_update(it->second.position, false);
-		}
-
-		/*
-		const float scale = 0.05;
-		for (auto it = currentComputationVoxels.begin(); it != currentComputationVoxels.end(); it++) {
-			cv::Vec3f u = svoxel.retrievePoint(*it, 1);
-			std::vector<SceneType::TreeIterator<OnLevel, Levels>> out;
-
-			cv::Vec3i g = scene.retrieveVoxel(u, OnLevel);
-
-			findNeighborsFor(u, scale, scene, out);
-			int closePoints = 0, farPoints = 0;
-			for (auto it1 = out.begin(); it1 != out.end(); it1++) {
-				auto it2 = *it1;
-				auto info = it2.getLevelInfo<OnLevel>();
-				for (int i = 0; i < info.pointCount; i++) {
-					float dist = cv::norm(u - it2->second.position);
-					if (dist > scale) {
-						farPoints++;
-					}
-					else {
-						closePoints++;
-					}
-					it2++;
-				}
-			}
-			std::cout << "Close " << closePoints << " Far " << farPoints << " Total " << closePoints + farPoints << std::endl;
-
-			auto sit = scene.surfacePoints.treeIteratorBegin();
-			farPoints = 0; closePoints = 0;
-			while (!sit.isEnd()) {
-				if (cv::norm(u - sit->second.position) > scale) {
-					farPoints++;
-				}
-				else {
-					closePoints++;
-				}
-				sit++;
-			}
-			std::cout << "Actual :" << "Close " << closePoints << " Far " << farPoints << " Total " << closePoints + farPoints << std::endl;
-
-		}
-		*/
-
-		while (currentComputationVoxels.surfacePoints.getPointCount() > 0) {
-			
-			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-				computeSurfaceFor(it->first, scene, currentOutput);
-
-				for (const auto& n : currentOutput) {
-					if (currentComputationVoxels.surfacePoints.findVoxel<CacheLocalityLevels>(svoxel.retrievePoint(n, 1)).isEnd() 
-							&& pastComputationVoxels.find(n) == pastComputationVoxels.end()) {
-						futureComputationVoxels.insert(n);
-					}
-				}
-
-				currentOutput.clear();
-			}
-			
-			pastComputationVoxels.reserve(pastComputationVoxels.size() + currentComputationVoxels.surfacePoints.getPointCount());
-			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-				pastComputationVoxels.insert(it->first);
-			}
-			currentComputationVoxels.surfacePoints.clear();
-			for (const auto& g : futureComputationVoxels) {
-				currentComputationVoxels.surfacePoints.insert_or_update(currentComputationVoxels.retrievePoint(g, CacheLocalityLevels), false);
-			}
-			futureComputationVoxels.clear();
-		}
-
-	}
-
-	inline std::pair<std::size_t, bool> allocateVertexForVoxel(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, int> &vPos, const cv::Vec3i &voxel) {
+	// Allocate or return a vertex in the list (used during mesh conversion)
+	inline std::pair<std::size_t, bool> allocateVertexForVoxel(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, int>& vPos, const cv::Vec3i& voxel) {
 		int result;
 		cv::Vec3f middle = svoxel.retrievePoint(voxel, 1);
 		auto it = vPos.surfacePoints.findVoxel<1>(middle);
@@ -502,7 +439,8 @@ public:
 		return std::make_pair(result, true);
 	}
 
-	inline void exportFace(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, int> &vPos, std::vector<CopyArray<int, 6>>& faces, 
+	// Export a face, adding all vertices to the output list if not already present (Otherwise the existing indices are used)
+	inline void exportFace(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, int>& vPos, std::vector<CopyArray<int, 6>>& faces,
 		const cv::Vec3i& base, const std::vector<cv::Vec3i>& relativeIncludes) {
 
 		int result[6];
@@ -537,6 +475,87 @@ public:
 		faces.push_back(result);
 	}
 
+public:
+
+	/*
+	Initialize the class.
+
+	sidelength: The voxel sidelength of the Scene with which this is used (lowest level)
+	minweight: The minimum weight required for a surface to be extracted. Use low value for clean pointclouds,
+		large value if lots of outliers and noise.
+	scalefactor: Essentially how big the region is where a point will influence the surface. The scalefactor is multiplied
+		by the lowest level voxel sidelenght of the scene. Larger values will result in smoother surfaces with less holes (tendence to oversmoothing),
+		and take more time to compute.
+	CornerCacheSize: The size of the cache for storing values of the implicit function
+	bias: If negative dual countouring is kinda ignored, and the derivative will not influence vertex positions
+		Faster to compute, and for noisy data potentially better results.
+		If positive the derivative will be taken into account to find a good fit, where a larger bias will again give a tendency
+		to converge to the basic point used also when bias is negative. Can give potentially more detail. Especially for higher resolutions
+		it actually does not have a large influence but is expensive hence the recommendation there is to use a negative value.
+	NormalsCacheSize: The size of the cache used for storing derivatives of the implicit function. If bias negative this cache is not used.
+	*/
+	SurfaceReconstruct(float sidelength, float minweight = 1.0, float scalefactor = 3.0, const int CornerCacheSize = 30000, float bias = -1.0, const int NormalsCacheSize = 0):
+		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })),
+		bias(bias), CornerCacheSize(CornerCacheSize), NormalsCacheSize(NormalsCacheSize)
+	{
+		cornerCache.reserve(CornerCacheSize + 8);
+		normalsCache.reserve(NormalsCacheSize + 12);
+	}
+
+	/*
+	Computes the entire surface defined by the points in scene. This will only update the internal 
+	representation of the scene, and needs to be called prior to surface extraction. 
+	It can in principle be called multiple times without affecting the result.
+	*/
+	void computeSurface(SceneType& scene) {
+		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
+
+		// Note: This uses a HierarchicalVoxelGrid to make sure that closeby voxels are computed roughly in order
+		// giving large speedups, because it increases cache locality. The bool is actually not used (more a set here)
+		constexpr int CacheLocalityLevels = 2;
+		HierachicalVoxelGrid<CacheLocalityLevels, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
+
+		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			currentComputationVoxels.surfacePoints.insert_or_update(it->second.position, false);
+		}
+
+		while (currentComputationVoxels.surfacePoints.getPointCount() > 0) {
+			
+			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+				computeSurfaceFor(it->first, scene, currentOutput);
+
+				for (const auto& n : currentOutput) {
+					if (currentComputationVoxels.surfacePoints.findVoxel<CacheLocalityLevels>(svoxel.retrievePoint(n, 1)).isEnd() 
+							&& pastComputationVoxels.find(n) == pastComputationVoxels.end()) {
+						futureComputationVoxels.insert(n);
+					}
+				}
+
+				currentOutput.clear();
+			}
+			
+			pastComputationVoxels.reserve(pastComputationVoxels.size() + currentComputationVoxels.surfacePoints.getPointCount());
+			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+				pastComputationVoxels.insert(it->first);
+			}
+			currentComputationVoxels.surfacePoints.clear();
+			for (const auto& g : futureComputationVoxels) {
+				currentComputationVoxels.surfacePoints.insert_or_update(currentComputationVoxels.retrievePoint(g, CacheLocalityLevels), false);
+			}
+			futureComputationVoxels.clear();
+		}
+
+	}
+
+	/*
+	Create a mesh (Needs to be called after computeSurface).
+	vertices: A list of CopyArrays (essentially just float array of size 3) storing the vertices
+	faces: A list of CopyArrays of length 6 storing the face indices. (6 because each element stores 2 triangles)
+		The indices start at 0.
+
+	Note: For both the actual use case is likely to directly access the underlying array, getting a float array where 
+		three consecutive floats define a vertex, and 3 consecutive ints define a face.
+	*/
 	void toConnectedMesh(std::vector<CopyArray<float, 3>>& vertices, std::vector<CopyArray<int, 6>>& faces) {
 		HierachicalVoxelGrid<1, int> vPos(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5 }));
 		std::vector<std::vector<cv::Vec3i>> relativeNeighbors = { 
@@ -559,6 +578,11 @@ public:
 		}
 	}
 
+	/*
+	Convenience function that calls toConnectedMesh and exports the mesh as .obj.
+
+	path: The path to which to export
+	*/
 	void exportObj(std::string path) {
 		std::vector<CopyArray<float, 3>> vertices;
 		std::vector<CopyArray<int, 6>> faces;

@@ -476,6 +476,22 @@ public:
 		return this->preprocVoxelSizes[level];
 	}
 
+	/*
+	Find all points which are closer in l1 distance to p than l1radius. Essentially simply includes all 
+	Voxels that can contain any points defined by this cube. It is guaranteed that all points closer than
+	l1radius are listed, and that each point only appears once. However points which are farther away than l1 distance
+	might also be listed.
+	(Note: For very small voxel sizes this function might have problems with numberical stability)
+
+	OnLevel: On which level of the hierarchical grid to list all voxels which have a point that is closer than l1radius.
+		This does not change the functionality, but has a high effect on speed. (A good trick to get fast lookups is to choose 
+		a level where l1radius roughly corresponds to the voxelsidelength)
+	p: The point in the center of the region which you are interested in
+	l1radius: The (L1) radius in which to obtain points
+	out: A vector of iterators containing iterators to all found voxels. If you want to iterate all points you should iterate 
+		all elements of the vector, check the number of points on the Level OnLevel (using GetLevelInfo) and increase the iterator this number
+		of times. 
+	*/
 	template <int OnLevel>
 	void findNeighborsFor(const cv::Vec3f p, const float l1radius, std::vector<TreeIterator<OnLevel, Levels>>& out) {
 		cv::Vec3f l1radi;
