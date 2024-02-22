@@ -493,7 +493,8 @@ public:
 		of times. 
 	*/
 	template <int OnLevel>
-	void findNeighborsFor(const cv::Vec3f p, const float l1radius, std::vector<TreeIterator<OnLevel, Levels>>& out) {
+	std::vector<TreeIterator<OnLevel, Levels>> findNeighborsFor(const cv::Vec3f p, const float l1radius) {
+		std::vector<TreeIterator<OnLevel, Levels>> out;
 		cv::Vec3f l1radi;
 		cv::Vec3f cornerQuad;
 
@@ -534,6 +535,7 @@ public:
 				out.push_back(it);
 			}
 		}
+		return out;
 	}
 
 	/*

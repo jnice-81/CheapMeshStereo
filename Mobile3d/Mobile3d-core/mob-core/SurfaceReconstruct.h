@@ -156,8 +156,7 @@ private:
 
 	// Compute the implicit value at p, assuming points have a scale of s
 	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s) const {
-		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
-		scene.findNeighborsFor(p, s, neighbors);
+		auto neighbors = scene.findNeighborsFor<OnLevel>(p, s);
 
 		double weightSum = 0;
 		double weightedValueSum = 0;
@@ -190,8 +189,7 @@ private:
 
 	// Compute the implicit normal (first derivative of implicit function) at p assuming points have scale s
 	cv::Vec3d computeImplicitNormal(const cv::Vec3f& p, double s) const {
-		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
-		scene.findNeighborsFor(p, s, neighbors);
+		auto neighbors = scene.findNeighborsFor<OnLevel>(p, s);
 
 		cv::Vec3f result;
 
