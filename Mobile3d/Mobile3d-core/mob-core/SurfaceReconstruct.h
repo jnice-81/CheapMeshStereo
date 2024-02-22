@@ -89,6 +89,7 @@ private:
 	int NormalsCacheSize = 5000;
 	// The actual storage of the mesh
 	HierachicalVoxelGrid<1, SurfaceVoxel> svoxel;
+	SceneType& scene;
 
 
 	// Loads all corner cache values for a voxel
@@ -154,7 +155,7 @@ private:
 	}
 
 	// Compute the implicit value at p, assuming points have a scale of s
-	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s, SceneType& scene) const {
+	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
 		scene.findNeighborsFor(p, s, neighbors);
 
@@ -188,7 +189,7 @@ private:
 	}
 
 	// Compute the implicit normal (first derivative of implicit function) at p assuming points have scale s
-	cv::Vec3d computeImplicitNormal(const cv::Vec3f& p, double s, SceneType& scene) const {
+	cv::Vec3d computeImplicitNormal(const cv::Vec3f& p, double s) const {
 		std::vector<SceneType::TreeIterator<OnLevel, Levels>> neighbors;
 		scene.findNeighborsFor(p, s, neighbors);
 
@@ -238,7 +239,7 @@ private:
 	}
 
 	// Computes a single SurfaceVoxel at a position
-	inline void computeSurfaceFor(const cv::Vec3i voxel, SceneType& scene, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors) {
+	inline void computeSurfaceFor(const cv::Vec3i voxel, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors) {
 
 		SurfaceVoxel result;
 		float sidelength = svoxel.retrieveVoxelSidelength(1);
@@ -256,7 +257,7 @@ private:
 				for (int z = 0; z < 2; z++) {
 					if (!implicitCacheValid[x][y][z]) {
 						cv::Vec3f p = cv::Vec3f(x * sidelength, y * sidelength, z * sidelength) + zeroPoint;
-						implicitVals[x][y][z] = computeImplicitValue(p, scale, scene);
+						implicitVals[x][y][z] = computeImplicitValue(p, scale);
 					}
 				}
 			}
@@ -380,7 +381,7 @@ private:
 					n = loadedNormalCache[i].first;
 				}
 				else {
-					n = computeImplicitNormal(changePoints[i], scale, scene);
+					n = computeImplicitNormal(changePoints[i], scale);
 					loadedNormalCache[i].first = n;
 				}
 
@@ -494,8 +495,9 @@ public:
 		it actually does not have a large influence but is expensive hence the recommendation there is to use a negative value.
 	NormalsCacheSize: The size of the cache used for storing derivatives of the implicit function. If bias negative this cache is not used.
 	*/
-	SurfaceReconstruct(float sidelength, float minweight = 1.0, float scalefactor = 3.0, const int CornerCacheSize = 30000, float bias = -1.0, const int NormalsCacheSize = 0):
-		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })),
+	SurfaceReconstruct(SceneType &scene, float minweight = 1.0, float scalefactor = 3.0, 
+			const int CornerCacheSize = 30000, float bias = -1.0, const int NormalsCacheSize = 0):
+		minweight(minweight), scalefactor(scalefactor), scene(scene), svoxel(scene.retrieveVoxelSidelength(Levels), std::vector<int>({ 5 })),
 		bias(bias), CornerCacheSize(CornerCacheSize), NormalsCacheSize(NormalsCacheSize)
 	{
 		cornerCache.reserve(CornerCacheSize + 8);
@@ -507,7 +509,7 @@ public:
 	representation of the scene, and needs to be called prior to surface extraction. 
 	It can in principle be called multiple times without affecting the result.
 	*/
-	void computeSurface(SceneType& scene) {
+	void computeSurface() {
 		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
 
 		// Note: This uses a HierarchicalVoxelGrid to make sure that closeby voxels are computed roughly in order
@@ -522,7 +524,7 @@ public:
 		while (currentComputationVoxels.surfacePoints.getPointCount() > 0) {
 			
 			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-				computeSurfaceFor(it->first, scene, currentOutput);
+				computeSurfaceFor(it->first, currentOutput);
 
 				for (const auto& n : currentOutput) {
 					if (currentComputationVoxels.surfacePoints.findVoxel<CacheLocalityLevels>(svoxel.retrievePoint(n, 1)).isEnd() 
