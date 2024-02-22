@@ -323,12 +323,15 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
               updatedPointsForRender.push_back(reconstructorOutput.back());
               collectedScene.addAllSingleCount(reconstructorOutput.back());
 
+              /*
               if (reconstructorOutput.size() >= 30) {
                   auto it = reconstructorOutput.begin();
                   int ud = collectedScene.filterNumviews(2, *it);
                   updatedPointsForRender.push_back(*it);
                   reconstructorOutput.pop_front();
               }
+              */
+              reconstructorOutput.pop_front();
 
               /*
               if (reconstructorOutput.size() >= 5) {
@@ -357,10 +360,9 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     LOGI("STarted");
 
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
-    SurfaceReconstruct reconstruct(collectedScene.retrieveVoxelSidelength(3) * 1.3, 4, 3.0);
+    SurfaceReconstruct reconstruct(collectedScene.retrieveVoxelSidelength(3) * 1.5, 4, 3.0);
     reconstruct.computeSurface(collectedScene);
     reconstruct.exportObj("/data/data/com.google.ar.core.examples.c.helloar/out.obj");
-    //PoissonSurfaceReconstruct<int, float, 3>::reconstructAndExport(collectedScene, "/data/data/com.google.ar.core.examples.c.helloar/out.ply");
     LOGI("Done");
 }
 

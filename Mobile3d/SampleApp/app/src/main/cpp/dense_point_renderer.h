@@ -99,7 +99,7 @@ public:
 
     void setScale(float scale);
 
-    void draw(Scene<SceneMaxLevel, bool> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix);
+    void draw(Scene<SceneMaxLevel> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix);
 
     void reset();
 

@@ -83,7 +83,7 @@ void dense_point_renderer::setScale(float scale) {
     drawscale = scale;
 }
 
-void dense_point_renderer::draw(Scene<SceneMaxLevel, bool> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix) {
+void dense_point_renderer::draw(Scene<SceneMaxLevel> &scene, const std::list<std::vector<ScenePoint>> &updates, int use_updates, const glm::mat4& mvp_matrix) {
     CHECK(shaderProgram);
 
     glUseProgram(shaderProgram);

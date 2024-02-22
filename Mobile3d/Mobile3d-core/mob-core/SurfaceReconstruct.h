@@ -8,8 +8,8 @@
 #include "HierarchicalVoxelGrid.h"
 #include "Scene.h"
 
-constexpr int OnLevel = 2;
-constexpr int Levels = 3;
+constexpr int OnLevel = 0;
+constexpr int Levels = 1;
 const int CornerCacheSize = 30000;
 const int NormalsCacheSize = 5000;
 typedef Scene<Levels> SceneType;
@@ -61,6 +61,7 @@ private:
 	std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
 	float minweight;
 	float scalefactor;
+	float bias;
 	HierachicalVoxelGrid<1, SurfaceVoxel> svoxel;
 
 	/*
@@ -374,56 +375,61 @@ private:
 		else {
 			foundneighbors.erase(voxel);
 		}
-		
-		std::vector<std::pair<cv::Vec3f, bool>> loadedNormalCache;
-		loadedNormalCache.reserve(changePoints.size());
-		loadNormalCache(normalCacheIdx, loadedNormalCache);
-
-		int matrixSize = changePoints.size() + 3;
-		cv::Mat A = cv::Mat(matrixSize, 3, CV_32F);
-		cv::Mat b = cv::Mat(matrixSize, 1, CV_32F);
-
-		for (int i = 0; i < changePoints.size(); i++) {
-			cv::Vec3f n;
-			if (loadedNormalCache[i].second) {
-				n = loadedNormalCache[i].first;
-			}
-			else {
-				n = computeImplicitNormal(changePoints[i], scale, scene);
-				loadedNormalCache[i].first = n;
-			}
-
-			memcpy(((float*)A.data) + i * 3, n.val, 3 * sizeof(float));
-			b.at<float>(i, 0) = n.dot(changePoints[i]);
-		}
-
-		storeNormalCache(normalCacheIdx, loadedNormalCache);
-
 
 		cv::Vec3f meanPos = cv::Vec3f::zeros();
 		for (int i = 0; i < changePoints.size(); i++) {
 			meanPos += changePoints[i];
 		}
 		meanPos = meanPos * (1.0 / changePoints.size());
+		
+		if (bias >= 0) {
+			std::vector<std::pair<cv::Vec3f, bool>> loadedNormalCache;
+			loadedNormalCache.reserve(changePoints.size());
+			loadNormalCache(normalCacheIdx, loadedNormalCache);
 
-		float bias = 1.0;
-		cv::Vec3f nX = cv::Vec3f(bias, 0, 0);
-		cv::Vec3f nY = cv::Vec3f(0, bias, 0);
-		cv::Vec3f nZ = cv::Vec3f(0, 0, bias);
-		memcpy(((float*)A.data) + changePoints.size() * 3, nX.val, 3 * sizeof(float));
-		memcpy(((float*)A.data) + changePoints.size() * 3 + 3, nY.val, 3 * sizeof(float));
-		memcpy(((float*)A.data) + changePoints.size() * 3 + 6, nZ.val, 3 * sizeof(float));
-		b.at<float>(changePoints.size(), 0) = nX.dot(meanPos);
-		b.at<float>(changePoints.size() + 1, 0) = nY.dot(meanPos);
-		b.at<float>(changePoints.size() + 2, 0) = nZ.dot(meanPos);
+			int matrixSize = changePoints.size() + 3;
+			cv::Mat A = cv::Mat(matrixSize, 3, CV_32F);
+			cv::Mat b = cv::Mat(matrixSize, 1, CV_32F);
 
-		cv::Vec3f point;
-		if (cv::solve(A, b, point, cv::DECOMP_NORMAL)) {
-			result.pos = point;
+			for (int i = 0; i < changePoints.size(); i++) {
+				cv::Vec3f n;
+				if (loadedNormalCache[i].second) {
+					n = loadedNormalCache[i].first;
+				}
+				else {
+					n = computeImplicitNormal(changePoints[i], scale, scene);
+					loadedNormalCache[i].first = n;
+				}
+
+				memcpy(((float*)A.data) + i * 3, n.val, 3 * sizeof(float));
+				b.at<float>(i, 0) = n.dot(changePoints[i]);
+			}
+
+			storeNormalCache(normalCacheIdx, loadedNormalCache);
+
+
+			cv::Vec3f nX = cv::Vec3f(bias, 0, 0);
+			cv::Vec3f nY = cv::Vec3f(0, bias, 0);
+			cv::Vec3f nZ = cv::Vec3f(0, 0, bias);
+			memcpy(((float*)A.data) + changePoints.size() * 3, nX.val, 3 * sizeof(float));
+			memcpy(((float*)A.data) + changePoints.size() * 3 + 3, nY.val, 3 * sizeof(float));
+			memcpy(((float*)A.data) + changePoints.size() * 3 + 6, nZ.val, 3 * sizeof(float));
+			b.at<float>(changePoints.size(), 0) = nX.dot(meanPos);
+			b.at<float>(changePoints.size() + 1, 0) = nY.dot(meanPos);
+			b.at<float>(changePoints.size() + 2, 0) = nZ.dot(meanPos);
+
+			cv::Vec3f point;
+			if (cv::solve(A, b, point, cv::DECOMP_NORMAL)) {
+				result.pos = point;
+			}
+			else {
+				result.pos = meanPos;
+			}
 		}
 		else {
-			result.pos = svoxel.retrieveVoxelCenter(1) + zeroPoint;
+			result.pos = meanPos;
 		}
+		
 
 		cv::Vec3f insert_point = svoxel.retrievePoint(voxel, 1);
 		svoxel.surfacePoints.insert_or_update(insert_point, result);
@@ -431,8 +437,8 @@ private:
 
 public:
 
-	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0) :
-		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 }))
+	SurfaceReconstruct(float sidelength, float minweight = 20.0, float scalefactor = 3.0, float bias = -1.0):
+		minweight(minweight), scalefactor(scalefactor), svoxel(sidelength, std::vector<int>({ 5 })), bias(bias)
 	{
 		cornerCache.reserve(CornerCacheSize + 8);
 		normalsCache.reserve(NormalsCacheSize + 12);

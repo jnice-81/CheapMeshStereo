@@ -81,7 +81,7 @@ public:
 		HierachicalVoxelGrid* parent;
 		size_t num_points = 0;
 	public:
-		template<int CurrentLevel, int MaxLevel>
+		template<int CurrentLevelO, int MaxLevelO>
 		friend class TreeIterator;
 
 		TreeLevel(HierachicalVoxelGrid* parent)
@@ -207,7 +207,7 @@ public:
 	private:
 		HierachicalVoxelGrid* parent;
 	public:
-		template<int CurrentLevel, int MaxLevel>
+		template<int CurrentLevelO, int MaxLevelO>
 		friend class TreeIterator;
 
 		TreeLevel(HierachicalVoxelGrid* parent)

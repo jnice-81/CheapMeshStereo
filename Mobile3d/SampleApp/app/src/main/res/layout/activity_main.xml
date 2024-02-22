@@ -53,7 +53,7 @@
         android:layout_weight="1"
         android:layout_height="wrap_content"
         android:layout_margin="10dp"
-        android:max="19"
+        android:max="39"
         android:progress="6" />
 
   </LinearLayout>

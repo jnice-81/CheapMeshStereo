@@ -106,7 +106,7 @@ class HelloArApplication {
   BackgroundRenderer background_renderer_;
   dense_point_renderer densePointRenderer_;
 
-  Scene<3, bool> collectedScene;
+  Scene<3> collectedScene;
   SlidingWindow slideWindow;
   std::vector<std::pair<std::size_t, std::size_t>> bufferedComputations;
   std::pair<std::size_t, std::size_t> currentComputation;

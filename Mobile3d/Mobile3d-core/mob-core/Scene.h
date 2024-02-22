@@ -137,6 +137,8 @@ public:
 			cv::Vec3f u = it->first;
 			cv::Vec3f v = it->second.position;
 			cv::Vec3f n = it->second.normal;
+			n = n / (cv::norm(n) + 0.0001);
+			n *= it->second.numhits;
 			f << v[0] << " " << v[1] << " " << v[2] << " " << n[0] << " " << n[1] << " " << n[2] << std::endl;
 		}
 		f.close();
@@ -161,7 +163,9 @@ public:
 			}
 			if (local == 5) {
 				//this->addPoint(v, n, 1.0);
-				ScenePoint q(v, n, 1);
+				short numhits = std::round(cv::norm(n));
+				n /= cv::norm(n);
+				ScenePoint q(v, n, numhits);
 				this->addPoint(q);
 			}
 
@@ -171,6 +175,12 @@ public:
 			throw "Something was wrong when reading the file in import_xyz";
 		}
 		f.close();
+	}
+
+	void normalizeNormals() {
+		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			it->second.normal = it->second.normal / (cv::norm(it->second.normal) + 0.00001);
+		}
 	}
 
 	/*

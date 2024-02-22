@@ -5,7 +5,6 @@
 #include <opencv2/highgui.hpp>
 #include "mob-core/Reconstruct.h"
 #include "mob-core/SlidingWindow.h"
-//#include "mob-core/PoissonSurfaceReconstruct.h"
 #include "mob-core/Scene.h"
 #include "mob-core/SurfaceReconstruct.h"
 
@@ -30,17 +29,19 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
 }
 
 void surface_test() {
-    Scene<3> gm(0.03, std::vector<int>({ 5, 5, 4 }));
-    gm.import_xyz("h.xyz");
+    Scene<1> gm(0.001, std::vector<int>({ 4 }));
+    std::string base = "C:/Users/Admin/Desktop/tests/stanford-bunny(PoissonRecon)/";
+    gm.import_xyz(base + "out.xyz");
 
-    SurfaceReconstruct r(0.04, 4, 3.0f);
+    gm.normalizeNormals();
+    SurfaceReconstruct r(0.001, 1, 3.0f, -1);
 
     std::cout << "Starting" << std::endl;
     MsClock c;
     r.computeSurface(gm);
     c.printAndReset("Ended");
     //r.exportImplNorm.export_xyz("samples.xyz");
-    r.exportObj("a.obj");
+    r.exportObj(base + "a.obj");
 }
 
 
@@ -93,10 +94,32 @@ void generate_test() {
     gm.export_xyz("h.xyz");
 }
 
-int main()
+/*
+void external_surface(int argc, char* argv[]) {
+
+    std::string ipath = argv[1];
+    std::string opath = argv[2];
+    
+    float voxelsize = std::stof(argv[3]);
+    int svoxelcount = std::stoi(argv[4]);
+
+    float recvoxelsize = std::stof(argv[5]);
+    float minweight = std::stof(argv[6]);
+    float scale = std::stof(argv[7]);
+
+    Scene<1> g(voxelsize, std::vector<int>({ svoxelcount }));
+    SurfaceReconstruct m(recvoxelsize, minweight, scale);
+
+    g.import_xyz(ipath);
+    m.computeSurface(g);
+    m.exportObj(opath);
+    std::cout << "Finished reconstruction" << std::endl;
+}*/
+
+int main(int argc, char* argv[])
 {
-    generate_test();
-    //surface_test();
+    //generate_test();
+    surface_test();
 
     return 0;
 }
