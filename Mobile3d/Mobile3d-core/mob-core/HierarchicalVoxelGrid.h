@@ -530,7 +530,7 @@ public:
 
 		out.reserve(select.size());
 		for (const auto& g : select) {
-			auto it = this->surfacePoints.findVoxel<OnLevel>(this->retrievePoint(g, OnLevel));
+			auto it = this->surfacePoints.template findVoxel<OnLevel>(this->retrievePoint(g, OnLevel));
 			if (!it.isEnd()) {
 				out.push_back(it);
 			}

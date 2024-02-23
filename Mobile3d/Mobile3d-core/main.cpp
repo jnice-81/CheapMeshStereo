@@ -8,6 +8,10 @@
 #include "mob-core/Scene.h"
 #include "mob-core/SurfaceReconstruct.h"
 
+/*
+Only for testing out stuff
+*/
+
 using jfile = nlohmann::json;
 
 cv::Mat load_matrix_from_json(nlohmann::json jarray) {
@@ -29,15 +33,16 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
 }
 
 void surface_test() {
-    Scene<1> gm(0.005, std::vector<int>({ 5 }));
-    std::string base = "C:/Users/Admin/Desktop/tests/stiefel/";
+    Scene<1> gm(0.003, std::vector<int>({ 4 }));
+    std::string base = "C:/Users/Admin/Desktop/tests/doese/";
     gm.import_xyz(base + "out.xyz");
 
-    gm.filterNumviews(3);
-    gm.export_xyz(base + "h.xyz");
+    gm.filterNumviews(0);
 
+    gm.refineNormals(0.003 * 3, 100);
     gm.normalizeNormals();
-    SurfaceReconstruct<0, 1> r(gm, 7, 4.0f, -1);
+    gm.export_xyz(base + "h.xyz");
+    SurfaceReconstruct<0, 1> r(gm, 3, 2.0f, -1);
 
     std::cout << "Starting" << std::endl;
     MsClock c;

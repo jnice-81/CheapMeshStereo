@@ -156,13 +156,13 @@ private:
 
 	// Compute the implicit value at p, assuming points have a scale of s
 	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s) const {
-		auto neighbors = scene.findNeighborsFor<OnLevel>(p, s);
+		auto neighbors = scene.template findNeighborsFor<OnLevel>(p, s);
 
 		double weightSum = 0;
 		double weightedValueSum = 0;
 
 		for (auto& it : neighbors) {
-			int count = it.getLevelInfo<OnLevel>().pointCount;
+			int count = it.template getLevelInfo<OnLevel>().pointCount;
 			for (int i = 0; i < count; i++) {
 				ScenePoint g = it->second;
 
@@ -175,7 +175,7 @@ private:
 				}
 
 				double x = g.normal.dot(diff);
-				double weight = lininp(0.0, s, 1.0, 0.0, dist);
+				double weight = lininp(0.0, s, 1.0, 0.0, dist) * g.numhits;
 				
 				weightedValueSum += x * weight;
 				weightSum += weight;
@@ -189,7 +189,7 @@ private:
 
 	// Compute the implicit normal (first derivative of implicit function) at p assuming points have scale s
 	cv::Vec3d computeImplicitNormal(const cv::Vec3f& p, double s) const {
-		auto neighbors = scene.findNeighborsFor<OnLevel>(p, s);
+		auto neighbors = scene.template findNeighborsFor<OnLevel>(p, s);
 
 		cv::Vec3f result;
 
@@ -204,7 +204,7 @@ private:
 		const float eps = 0.001;
 
 		for (auto& it : neighbors) {
-			int count = it.getLevelInfo<OnLevel>().pointCount;
+			int count = it.template getLevelInfo<OnLevel>().pointCount;
 			for (int i = 0; i < count; i++) {
 				ScenePoint g = it->second;
 
@@ -423,7 +423,7 @@ private:
 		cv::Vec3f middle = svoxel.retrievePoint(voxel, 1);
 		auto it = vPos.surfacePoints.findVoxel<1>(middle);
 		if (it.isEnd()) {
-			auto svoxelptr = svoxel.surfacePoints.findVoxel<1>(middle);
+			auto svoxelptr = svoxel.surfacePoints.template findVoxel<1>(middle);
 			if (svoxelptr.isEnd()) {
 				return std::make_pair(0, false);
 			}
@@ -591,13 +591,13 @@ public:
 
 		std::ofstream g(path, std::ios_base::out);
 
-		for (CopyArray<float, 3>& f : vertices) {
+		for (CopyArray<float, 3> &f: vertices) {
 			g << "v " << f[0] << " " << f[1] << " " << f[2] << std::endl;
 		}
 
-		for (auto& f : faces) {
-			g << "f " << f[0]+1 << " " << f[1]+1 << " " << f[2]+1 << std::endl;
-			g << "f " << f[3]+1 << " " << f[4]+1 << " " << f[5]+1 << std::endl;
+		for (auto &f: faces) {
+			g << "f " << f[0] + 1 << " " << f[1] + 1 << " " << f[2] + 1 << std::endl;
+			g << "f " << f[3] + 1 << " " << f[4] + 1 << " " << f[5] + 1 << std::endl;
 		}
 
 		g.close();

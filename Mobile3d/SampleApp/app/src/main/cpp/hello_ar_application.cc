@@ -360,8 +360,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     LOGI("STarted");
 
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
-    SurfaceReconstruct reconstruct(collectedScene.retrieveVoxelSidelength(3) * 1.5, 4, 3.0);
-    reconstruct.computeSurface(collectedScene);
+    SurfaceReconstruct<2, 3> reconstruct(collectedScene, 4, 3.0);
+    reconstruct.computeSurface();
     reconstruct.exportObj("/data/data/com.google.ar.core.examples.c.helloar/out.obj");
     LOGI("Done");
 }

@@ -117,7 +117,7 @@ public class HelloArActivity extends AppCompatActivity
       @Override
       public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
         // Handle progress change
-        granularity = (float) (progress + 1) / (2.0f * 100f); // Convert progress to value
+        granularity = (float) (progress + 1) / (5.0f * 100f); // Convert progress to value
       }
 
       @Override

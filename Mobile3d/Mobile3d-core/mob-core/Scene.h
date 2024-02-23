@@ -18,6 +18,17 @@ Levels: The number of Levels of the hierarchical Grid
 */
 template<int Levels>
 class Scene : public HierachicalVoxelGrid<Levels, ScenePoint> {
+private:
+	class NormalPrio {
+	public:
+		float dist;
+		cv::Vec3f pos;
+
+		bool operator<(const NormalPrio& other) const {
+			return other.dist < dist;
+		}
+	};
+
 public:
 	Scene(double voxelSideLength, std::vector<int> indexBlocks) : HierachicalVoxelGrid<Levels, ScenePoint>(voxelSideLength, indexBlocks) {
 
@@ -215,6 +226,63 @@ public:
 			if (addedPointsBuffer.find(u) == addedPointsBuffer.end()) {
 				addedPointsBuffer.insert(u);
 				this->addPoint(p);
+			}
+		}
+	}
+
+	void refineNormals(float radius, int knearest) {
+		constexpr int OnLevel = 0;
+
+		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			cv::Vec3f current = it->second.position;
+			auto close = this->findNeighborsFor<OnLevel>(current, radius);
+			std::priority_queue<NormalPrio, std::vector<NormalPrio>> prioqueue;
+
+			for (auto it2 = close.begin(); it2 != close.end(); it2++) {
+				auto it3 = *it2;
+				int pointcount = it3.getLevelInfo<OnLevel>().pointCount;
+				for (int i = 0; i < pointcount; i++, it3++) {
+					NormalPrio g;
+					g.pos = it3->second.position;
+					g.dist = cv::norm(g.pos - current, cv::NORM_L2);
+					prioqueue.push(g);
+				}
+			}
+
+			if (prioqueue.size() < knearest) {
+				it->second.normal = cv::Vec3f::zeros();
+				it->second.numhits = 0;
+			}
+			else {
+				cv::Vec3d mean = cv::Vec3d::zeros();
+				cv::Mat A(3, knearest, CV_32F);
+				for (int i = 0; i < knearest; i++) {
+					NormalPrio np = prioqueue.top();
+					prioqueue.pop();
+
+					cv::Vec3f p = np.pos;
+					A.at<float>(0, i) = p[0];
+					A.at<float>(1, i) = p[1];
+					A.at<float>(2, i) = p[2];
+					mean += p;
+				}
+				mean = mean * (1.0 / knearest);
+				for (int i = 0; i < knearest; i++) {
+					A.at<float>(0, i) -= mean[0];
+					A.at<float>(1, i) -= mean[1];
+					A.at<float>(2, i) -= mean[2];
+				}
+
+				cv::SVD svd(A);
+
+				cv::Vec3f n = svd.u.col(2);
+				n = n / cv::norm(n);
+
+				float d = n.dot(it->second.normal);
+				if (d < 0) {
+					n = -n;
+				}
+				it->second.normal = n;
 			}
 		}
 	}
