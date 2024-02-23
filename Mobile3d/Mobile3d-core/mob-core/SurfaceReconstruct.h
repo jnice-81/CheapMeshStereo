@@ -1,13 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <vector>
-#include <unordered_map>
-#include <opencv2/core.hpp>
-
-#include "HierarchicalVoxelGrid.h"
 #include "Scene.h"
-
 
 /*
 An array that can be copied.

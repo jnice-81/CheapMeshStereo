@@ -1,10 +1,6 @@
 #include <opencv2/opencv.hpp>
-#include <opencv2/core.hpp>
-#include <fstream>
 #include <iostream>
-#include <unordered_set>
 #include <list>
-#include <chrono>
 
 #include "helpers.h"
 #include "View.h"
@@ -89,7 +85,7 @@ public:
 		cv::Rect disparityRoi = cv::Rect(x, y, width, height);
 
 		if (rP2.at<double>(1, 3) != 0) {
-			std::cout << "Aborted update because of vertical shift";
+			std::cout << "Aborted computation because of vertical shift (not supported for now)";
 			return; // Indicates vertical rectification which is not supported for now
 		}
 		double shift = -1 / Q.at<double>(3, 2);

@@ -1,12 +1,7 @@
 #pragma once
 
-#include <opencv2/opencv.hpp>
-#include <opencv2/core.hpp>
 #include <fstream>
-#include <unordered_set>
-#include <unordered_map>
 
-#include "helpers.h"
 #include "HierarchicalVoxelGrid.h"
 #include "ScenePoint.h"
 

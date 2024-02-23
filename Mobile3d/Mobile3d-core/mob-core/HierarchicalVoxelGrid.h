@@ -1,5 +1,12 @@
 #pragma once
 
+#include <algorithm>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <opencv2/opencv.hpp>
+
+
 /*
 A class implementing a simple hash function for 3d integer vectors
 */
