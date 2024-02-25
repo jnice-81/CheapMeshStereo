@@ -317,7 +317,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
               LOGI("Starting computation %d, %d", currentComputation.first, currentComputation.second);
 
               reconstructorOutput.emplace_back();
-              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), near, far, collectedScene.retrieveVoxelSidelength(3), 16 * 15);
+              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), near, far, collectedScene.retrieveVoxelSidelength(3) * 3, 16 * 20);
 
               unfiltered_points += reconstructorOutput.back().size();
               updatedPointsForRender.push_back(reconstructorOutput.back());

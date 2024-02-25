@@ -73,6 +73,7 @@ public:
 		for (const auto &k : toRemove) {
 			cv::Vec3f p = this->retrievePoint(k, OnLevel);
 			removed += this->surfacePoints.template eraseVoxel<OnLevel>(p);
+			std::cout << removed << std::endl;
 		}
 		return removed;
 	}
@@ -235,7 +236,7 @@ public:
 
 			for (auto it2 = close.begin(); it2 != close.end(); it2++) {
 				auto it3 = *it2;
-				int pointcount = it3.getLevelInfo<OnLevel>().pointCount;
+				int pointcount = it3.template getLevelInfo<OnLevel>().pointCount;
 				for (int i = 0; i < pointcount; i++, it3++) {
 					NormalPrio g;
 					g.pos = it3->second.position;
@@ -289,10 +290,9 @@ public:
 		auto it = this->surfacePoints.treeIteratorBegin();
 		std::vector<cv::Vec3i> toRemove;
 
-		int noAccept = 0;
 		while (!it.isEnd()) {
 			if (it->second.numhits < minView) {
-				toRemove.push_back(this->retrieveVoxel(it->second.position, Levels));
+				toRemove.push_back(it->first);
 			}
 			it++;
 		}

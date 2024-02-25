@@ -33,16 +33,19 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
 }
 
 void surface_test() {
-    Scene<1> gm(0.003, std::vector<int>({ 4 }));
-    std::string base = "C:/Users/Admin/Desktop/tests/doese/";
+    Scene<1> gm(0.03, std::vector<int>({ 5 }));
+    std::string base = "C:/Users/Admin/Desktop/tests/room/";
     gm.import_xyz(base + "out.xyz");
 
-    gm.filterNumviews(0);
+    double mean = 0.0;
+    for (auto it = gm.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+        mean += (double)it->second.numhits;
+    }
+    mean /= gm.surfacePoints.getPointCount();
+    std::cout << "Mean hits " << mean << std::endl;
 
-    gm.refineNormals(0.003 * 3, 100);
     gm.normalizeNormals();
-    gm.export_xyz(base + "h.xyz");
-    SurfaceReconstruct<0, 1> r(gm, 3, 2.0f, -1);
+    SurfaceReconstruct<0, 1> r(gm, 10, 3.0f, -1);
 
     std::cout << "Starting" << std::endl;
     MsClock c;
