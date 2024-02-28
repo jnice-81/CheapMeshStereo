@@ -318,33 +318,13 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
               LOGI("Starting computation %d, %d", currentComputation.first, currentComputation.second);
 
               reconstructorOutput.emplace_back();
-              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), near, far, collectedScene.retrieveVoxelSidelength(3) * 3, 16 * 20);
+              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), near, far, collectedScene.retrieveVoxelSidelength(3) * 3, 16 * 20, false);
 
               unfiltered_points += reconstructorOutput.back().size();
               updatedPointsForRender.push_back(reconstructorOutput.back());
               collectedScene.addAllSingleCount(reconstructorOutput.back());
 
-              /*
-              if (reconstructorOutput.size() >= 30) {
-                  auto it = reconstructorOutput.begin();
-                  int ud = collectedScene.filterNumviews(2, *it);
-                  updatedPointsForRender.push_back(*it);
-                  reconstructorOutput.pop_front();
-              }
-              */
               reconstructorOutput.pop_front();
-
-              /*
-              if (reconstructorOutput.size() >= 5) {
-                  //collectedScene.filterOutliers<1>(0, 200, *it);
-                  //collectedScene.filterOutliers<2>(1, 40, *it);
-                  auto it = reconstructorOutput.begin();
-                  int ud = collectedScene.filterNumviews(10000, *it);
-                  LOGI("Removing %d", ud);
-                  updatedPointsForRender.push_back(*it);
-                  reconstructorOutput.pop_front();
-              }
-               */
 
               auto end_time = std::chrono::high_resolution_clock::now();
               auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(

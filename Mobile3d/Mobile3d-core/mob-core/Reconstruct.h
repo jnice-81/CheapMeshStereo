@@ -62,9 +62,11 @@ public:
 			is larger than precision
 		maxDisp: The maximum allowed disparity. The actual maximum disparity is controlled by minDepth, but maxDisp acts as a hard threshold.
 			Must be dividable by 16.
+        use_block_matching: If true uses cheap block matching, otherwise SGBM is used. Note that
+            SGBM tends to work better in textureless regions, but also seems to create more (structured) outliers.
 	*/
 	static void compute3d(const View &v1, const View &v2, std::vector<ScenePoint> &out,
-		double minDepth, double maxDepth, double precision, size_t maxDisp = 16 * 15) {
+		double minDepth, double maxDepth, double precision, size_t maxDisp = 16 * 15, bool use_block_matching=false) {
 
 		cv::Rect roiR = cv::Rect(0, 0, 3, 3);
 		cv::Rect roiT = cv::Rect(3, 0, 1, 3);
@@ -130,21 +132,27 @@ public:
 			mindisp = 0;
 		}
 
-		cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(
-				ndisp,
-				15);
-		blocksearcher->setUniquenessRatio(20);
-		blocksearcher->setMinDisparity(mindisp);
-		blocksearcher->setDisp12MaxDiff(1);
-		blocksearcher->setPreFilterSize(9);
-		blocksearcher->setPreFilterType(cv::StereoBM::PREFILTER_NORMALIZED_RESPONSE);
-		blocksearcher->setPreFilterCap(31);
-		blocksearcher->setTextureThreshold(10);
-		blocksearcher->setSpeckleRange(32);
-		blocksearcher->setSpeckleWindowSize(100);
-		
 		cv::Mat disparity;
-		blocksearcher->compute(rectified_image1, rectified_image2, disparity);
+		if (use_block_matching) {
+            cv::Ptr<cv::StereoBM> blocksearcher = cv::StereoBM::create(
+                    ndisp,
+                    15);
+            blocksearcher->setUniquenessRatio(20);
+            blocksearcher->setMinDisparity(mindisp);
+            blocksearcher->setDisp12MaxDiff(1);
+            blocksearcher->setPreFilterSize(9);
+            blocksearcher->setPreFilterType(cv::StereoBM::PREFILTER_NORMALIZED_RESPONSE);
+            blocksearcher->setPreFilterCap(31);
+            blocksearcher->setTextureThreshold(10);
+            blocksearcher->setSpeckleRange(32);
+            blocksearcher->setSpeckleWindowSize(100);
+			blocksearcher->compute(rectified_image1, rectified_image2, disparity);
+        }
+        else {
+            cv::Ptr<cv::StereoSGBM> blocksearcher = cv::StereoSGBM::create(mindisp, ndisp, 16, 8*3*9, 32*3*9, 0, 31,20, 100, 32);
+			blocksearcher->compute(rectified_image1, rectified_image2, disparity);
+        }
+
 		disparity /= 16;
 
 		addDisparity(disparity, Q, rR1, v1.extrinsics, minDisp, mindisp-1, out, disparityRoi.x, disparityRoi.y);
