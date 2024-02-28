@@ -32,7 +32,7 @@
 namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
-    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 20, 2})),
+    : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 10, 4})),
       slideWindow(20) {}
 
 HelloArApplication::~HelloArApplication() {
@@ -254,13 +254,14 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       util::CheckGlError("Something went wrong when copying the image to CPU");
 
       cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
-      cv::cvtColor(image, image, cv::COLOR_RGBA2BGR);
+      cv::cvtColor(image, image, cv::COLOR_RGBA2GRAY);
       cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
       cv::resize(image, image, cv::Size(720, 1280));
 
       delete[] pixels;
 
       cv::Mat intrinsics = View::oglIntrinsicsToCVIntrinsics(glm4x4ToCvMat(projection_mat), image.size());
+
       View current(image, intrinsics, extrinsics);
       int currentIndex = slideWindow.add_image(current);
 
@@ -359,8 +360,10 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     reconstructionFuture.wait();
     LOGI("STarted");
 
+
+    collectedScene.normalizeNormals();
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
-    SurfaceReconstruct<2, 3> reconstruct(collectedScene, 4, 3.0);
+    SurfaceReconstruct<2, 3> reconstruct(collectedScene, 5, 3.5);
     reconstruct.computeSurface();
     reconstruct.exportObj("/data/data/com.google.ar.core.examples.c.helloar/out.obj");
     LOGI("Done");
@@ -371,7 +374,7 @@ void HelloArApplication::ChangeGranularity(float granularity) {
         reconstructionFuture.wait();
     }
 
-    collectedScene.reset(granularity, std::vector<int>({1, 1, 2}));
+    collectedScene.reset(granularity, std::vector<int>({10, 10, 4}));
     densePointRenderer_.reset();
     densePointRenderer_.setScale(granularity * 30);
 }

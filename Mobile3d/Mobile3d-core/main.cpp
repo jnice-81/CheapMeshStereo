@@ -33,8 +33,8 @@ cv::Mat load_matrix_from_json(nlohmann::json jarray) {
 }
 
 void surface_test() {
-    Scene<1> gm(0.03, std::vector<int>({ 5 }));
-    std::string base = "C:/Users/Admin/Desktop/tests/room/";
+    Scene<1> gm(0.08, std::vector<int>({ 4 }));
+    std::string base = "C:/Users/Admin/Desktop/";
     gm.import_xyz(base + "out.xyz");
 
     double mean = 0.0;
@@ -45,13 +45,12 @@ void surface_test() {
     std::cout << "Mean hits " << mean << std::endl;
 
     gm.normalizeNormals();
-    SurfaceReconstruct<0, 1> r(gm, 10, 3.0f, -1);
+    SurfaceReconstruct<0, 1> r(gm, 5, 3.5f, -1);
 
     std::cout << "Starting" << std::endl;
     MsClock c;
     r.computeSurface();
     c.printAndReset("Ended");
-    //r.exportImplNorm.export_xyz("samples.xyz");
     r.exportObj(base + "a.obj");
 }
 

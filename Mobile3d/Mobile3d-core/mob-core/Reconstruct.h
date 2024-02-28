@@ -86,19 +86,21 @@ public:
 
 		if (rP2.at<double>(1, 3) != 0) {
 			std::cout << "Aborted computation because of vertical shift (not supported for now)";
-			return; // Indicates vertical rectification which is not supported for now
+			return;
 		}
 		double shift = -1 / Q.at<double>(3, 2);
 		double f = Q.at<double>(2, 3);
 
 		int maxDispDepth = (int)getDisparityForDepth(minDepth, f, std::abs(shift));
 		int minDispPrec = (int)getMinDisparityForPrecision(f, std::abs(shift), precision);
+		int minDispDepth = (int)getDisparityForDepth(maxDepth, f, std::abs(shift));
+		int minDisp = std::max(minDispPrec, minDispDepth);
 		maxDispDepth -= maxDispDepth % 16;
 		if (maxDispDepth > maxDisp) {
 			maxDispDepth = maxDisp;
 		}
 
-		if (minDispPrec >= maxDispDepth) {
+		if (minDisp >= maxDispDepth) {
 			std::cout << "No valid disparity for the given precision and depth. Aborted";
 			return;
 		}
@@ -140,16 +142,12 @@ public:
 		blocksearcher->setTextureThreshold(10);
 		blocksearcher->setSpeckleRange(32);
 		blocksearcher->setSpeckleWindowSize(100);
-
-		cv::cvtColor(rectified_image1, rectified_image1, cv::COLOR_BGR2GRAY);
-		cv::cvtColor(rectified_image2, rectified_image2, cv::COLOR_BGR2GRAY);
 		
 		cv::Mat disparity;
 		blocksearcher->compute(rectified_image1, rectified_image2, disparity);
 		disparity /= 16;
 
-		addDisparity(disparity, Q, rR1, v1.extrinsics, minDispPrec, mindisp-1, out, disparityRoi.x, disparityRoi.y);
-
+		addDisparity(disparity, Q, rR1, v1.extrinsics, minDisp, mindisp-1, out, disparityRoi.x, disparityRoi.y);
 	}
 
 private:
@@ -233,7 +231,7 @@ private:
 							int nextX = xidx + 1;
 
 							if (isNormalBufferDefined[yidx][xidx] && isNormalBufferDefined[yidx][nextX]) {
-								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[yidx][nextX];
+								cv::Vec3d c = normalBufferPoints[yidx][xidx] - normalBufferPoints[yidx][nextX];								
 								left += c / cv::norm(c);
 								countDefLeft += 1;
 							}
@@ -259,10 +257,13 @@ private:
 						bottom /= countDefBottom;
 
 						cv::Vec3f n = -left.cross(bottom);
-						n = n / cv::norm(n);
+						float normn = cv::norm(n);
+						n = n / normn;
 						cv::Vec3f p = normalBufferPoints[currentIdxY][currentIdxX];
 
-						out.emplace_back(p, n, 1.0f);
+						if (normn > 0) {
+							out.emplace_back(p, n, 1.0f);
+						}
 					}
 				}
 			}

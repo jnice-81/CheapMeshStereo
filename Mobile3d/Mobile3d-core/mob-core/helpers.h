@@ -15,8 +15,12 @@ public:
 
 	void printAndReset(std::string msg) {
 		std::cout << msg << " " << 
-			std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - startTime).count() << std::endl;
+			get() << std::endl;
 		reset();
+	}
+
+	int get() {
+		return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - startTime).count();
 	}
 
 	std::chrono::system_clock::time_point startTime;
