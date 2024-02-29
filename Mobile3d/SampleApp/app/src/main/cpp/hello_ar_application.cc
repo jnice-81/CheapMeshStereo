@@ -33,7 +33,12 @@ namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
     : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 10, 4})),
-      slideWindow(20) {}
+      slideWindow(20) {
+
+    const int numComputations = 2;
+    reconstructionFuture.resize(numComputations);
+    reconstructorOutput.resize(numComputations);
+}
 
 HelloArApplication::~HelloArApplication() {
   if (ar_session_ != nullptr) {
@@ -217,14 +222,6 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 
 
   cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
-  std::future_status reconstruction_status;
-
-    if (reconstructionFuture.valid()) {
-        reconstruction_status = reconstructionFuture.wait_for(std::chrono::milliseconds(0));
-    }
-    else {
-        reconstruction_status = std::future_status::ready;
-    }
 
     // Decide weather to store the new image, load it if yes, and decide with which other images to perform comparision
   std::pair<float, float> relativePose;
@@ -254,9 +251,16 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       util::CheckGlError("Something went wrong when copying the image to CPU");
 
       cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
-      cv::cvtColor(image, image, cv::COLOR_RGBA2GRAY);
-      cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
+      MsClock u;
       cv::resize(image, image, cv::Size(720, 1280));
+      LOGI("res %d", u.get());
+      u.reset();
+      //cv::cvtColor(image, image, cv::COLOR_RGBA2GRAY);
+      //LOGI("gray %d", u.get());
+      u.reset();
+      cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
+      LOGI("rot %d", u.get());
+      u.reset();
 
       delete[] pixels;
 
@@ -281,26 +285,45 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       }
   }
 
-  // Render dense pointcloud, potentially updating if reconstruction not running
-    int updates = 0;
-    if (reconstruction_status == std::future_status::ready) {
-        updates = updatedPointsForRender.size();
-    }
-    // reconstructorOutput and collectedScene are only accessed if updates > 0
+  // Render dense pointcloud
+    int updates = updatedPointsForRender.size();
     densePointRenderer_.draw(collectedScene, updatedPointsForRender, updates, projection_mat * view_mat);
-    if (reconstruction_status == std::future_status::ready) {
-        updatedPointsForRender.clear();
-    }
+    updatedPointsForRender.clear();
 
     // Try to start a new computation if none is running
-  if (bufferedComputations.size() > 0 && reconstruction_status == std::future_status::ready && !this->stopFutureComputations) {
+    for (int tidx = 0; tidx < reconstructionFuture.size() && !this->stopFutureComputations && !bufferedComputations.empty(); tidx++) {
+
+        std::future_status reconstruction_status;
+        if (reconstructionFuture[tidx].valid()) {
+            reconstruction_status = reconstructionFuture[tidx].wait_for(std::chrono::milliseconds(0));
+        }
+        else {
+            reconstruction_status = std::future_status::ready;
+        }
+
+        if (reconstruction_status == std::future_status::ready) {
+            if (!reconstructorOutput[tidx].empty()) {
+                updatedPointsForRender.emplace_back();
+                std::vector<ScenePoint> &currentUpdate = updatedPointsForRender.back();
+                for (auto &s : reconstructorOutput[tidx]) {
+                    currentUpdate.push_back(s);
+                    collectedScene.addPoint(s);
+                }
+                reconstructorOutput[tidx].clear();
+            }
+        }
+        else {
+            continue;
+        }
+
       long lastDefinedImage = (long)slideWindow.getCurrentImageIndex() - (long)slideWindow.size() + 1;
-      bool isComputationRunning = false;
-      while (bufferedComputations.size() > 0) {
-          currentComputation = bufferedComputations.back();
+      bool canStartComputation = false;
+      std::pair<long, long> selectedComputation;
+      while (!bufferedComputations.empty()) {
+          selectedComputation = bufferedComputations.back();
           bufferedComputations.pop_back();
-          isComputationRunning = currentComputation.first >= lastDefinedImage && currentComputation.second >= lastDefinedImage;
-          if (isComputationRunning) {
+          canStartComputation = selectedComputation.first >= lastDefinedImage && selectedComputation.second >= lastDefinedImage;
+          if (canStartComputation) {
               break;
           }
           else {
@@ -308,28 +331,31 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
           }
       }
 
-      if (isComputationRunning) {
-          View v1 = slideWindow.getViewByImageIndex(currentComputation.first);
-          View v2 = slideWindow.getViewByImageIndex(currentComputation.second);
+      if (canStartComputation) {
+          View v1 = slideWindow.getViewByImageIndex(selectedComputation.first);
+          View v2 = slideWindow.getViewByImageIndex(selectedComputation.second);
 
-          reconstructionFuture = std::async(std::launch::async, [this, v1, v2, near, far] {
+          reconstructionFuture[tidx] = std::async(std::launch::async, [this, v1, v2, near, far, selectedComputation, tidx] {
               auto start_time = std::chrono::high_resolution_clock::now();
-              dbgidx++;
-              LOGI("Starting computation %d, %d", currentComputation.first, currentComputation.second);
+              LOGI("Starting computation %d, %d, on %d", selectedComputation.first, selectedComputation.second, tidx);
 
-              reconstructorOutput.emplace_back();
-              Reconstruct::compute3d(v1, v2, reconstructorOutput.back(), near, far, collectedScene.retrieveVoxelSidelength(3) * 3, 16 * 20, false);
+              std::vector<ScenePoint> &currentWrite = reconstructorOutput[tidx];
+              std::vector<ScenePoint> tmp;
+              std::unordered_set<cv::Vec3i, VecHash> filter;
+              Reconstruct::compute3d(v1, v2, tmp, near, far, collectedScene.retrieveVoxelSidelength(3) * 3, 16 * 20, false);
 
-              unfiltered_points += reconstructorOutput.back().size();
-              updatedPointsForRender.push_back(reconstructorOutput.back());
-              collectedScene.addAllSingleCount(reconstructorOutput.back());
-
-              reconstructorOutput.pop_front();
+              for (auto &s : tmp) {
+                  auto check = collectedScene.retrieveVoxel(s.position, 3); // Note: only const read access to collectedscene
+                  if (filter.find(check) == filter.end()) {
+                        filter.insert(check);
+                        currentWrite.push_back(s);
+                  }
+              }
 
               auto end_time = std::chrono::high_resolution_clock::now();
               auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                       end_time - start_time);
-              LOGI("Ended %d", duration.count());
+              LOGI("Ended %d on %d", duration.count(), tidx);
           });
       }
   }
@@ -337,9 +363,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 
  void HelloArApplication::ComputeSurface() {
     stopFutureComputations = true;
-    reconstructionFuture.wait();
     LOGI("STarted");
-
 
     collectedScene.normalizeNormals();
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
@@ -350,13 +374,18 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
 }
 
 void HelloArApplication::ChangeGranularity(float granularity) {
-    if (reconstructionFuture.valid()) {
-        reconstructionFuture.wait();
+    stopFutureComputations = true;
+    for (auto & f : reconstructionFuture) {
+        if (f.valid()) {
+            f.wait();
+        }
     }
 
     collectedScene.reset(granularity, std::vector<int>({10, 10, 4}));
     densePointRenderer_.reset();
     densePointRenderer_.setScale(granularity * 30);
+
+    stopFutureComputations = false;
 }
 
 

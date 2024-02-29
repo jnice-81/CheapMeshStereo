@@ -109,14 +109,12 @@ class HelloArApplication {
   Scene<3> collectedScene;
   SlidingWindow slideWindow;
   std::vector<std::pair<std::size_t, std::size_t>> bufferedComputations;
-  std::pair<std::size_t, std::size_t> currentComputation;
-  std::list<std::vector<ScenePoint>> reconstructorOutput;
+  std::vector<std::vector<ScenePoint>> reconstructorOutput;
   std::list<std::vector<ScenePoint>> updatedPointsForRender;
-  size_t unfiltered_points = 0;
-  std::future<void> reconstructionFuture;
+  std::vector<std::future<void>> reconstructionFuture;
   int dbgidx = 0;
   std::fstream dbgexport;
-  bool stopFutureComputations = false;
+  volatile bool stopFutureComputations = false;
 
   void ConfigureSession();
 };
