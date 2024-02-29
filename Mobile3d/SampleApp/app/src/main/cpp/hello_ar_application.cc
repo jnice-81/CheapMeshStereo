@@ -35,7 +35,7 @@ HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
     : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 10, 4})),
       slideWindow(20) {
 
-    const int numComputations = 2;
+    const int numComputations = 3;
     reconstructionFuture.resize(numComputations);
     reconstructorOutput.resize(numComputations);
 }
@@ -138,6 +138,18 @@ inline glm::mat4 CvMatToGlm4x4(cv::Mat a) {
     return b;
 }
 
+template<typename T>
+std::future_status checkFutureStatus(std::future<T> &t) {
+    std::future_status result;
+    if (t.valid()) {
+        result = t.wait_for(std::chrono::milliseconds(0));
+    }
+    else {
+        result = std::future_status::ready;
+    }
+    return result;
+}
+
 
 void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
                                      bool useDepthForOcclusion) {
@@ -220,7 +232,6 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     far = std::clamp(far + 1.0f, 0.3f, 100.0f);
     meandist /= number_of_points;
 
-
   cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
 
     // Decide weather to store the new image, load it if yes, and decide with which other images to perform comparision
@@ -229,7 +240,16 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       relativePose = View::getRelativeRotationAndTranslation(extrinsics, slideWindow.getView(0).extrinsics);
   }
   float minBaseline = meandist / 10.0;
-  if (slideWindow.size() == 0 || relativePose.first >= 0.2 || relativePose.second >= minBaseline) {
+  auto imgloadstatus = checkFutureStatus(imgloadFuture);
+
+
+  if (imgloadstatus == std::future_status::ready && imgloadFuture.valid()) {
+      slideWindow.getView(0).image = imgloadFuture.get();
+      delete[] pixels;
+  }
+
+  if ((slideWindow.size() == 0 || relativePose.first >= 0.2 || relativePose.second >= minBaseline) &&
+        imgloadstatus == std::future_status::ready) {
       LOGI("Adding Image");
       const GLuint texId = background_renderer_.GetTextureId();
       glBindTexture(GL_TEXTURE_EXTERNAL_OES, texId);
@@ -237,7 +257,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_WIDTH, &lwidth);
       glGetTexLevelParameteriv(GL_TEXTURE_EXTERNAL_OES, 0, GL_TEXTURE_HEIGHT, &lheight);
 
-      GLubyte* pixels = new GLubyte[lwidth * lheight * 4]; // 4 channels (RGBA)
+      pixels = new GLubyte[lwidth * lheight * 4]; // 4 channels (RGBA)
 
       GLuint fbo;
       glGenFramebuffers(1, &fbo);
@@ -250,36 +270,34 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       glDeleteFramebuffers(1, &fbo);
       util::CheckGlError("Something went wrong when copying the image to CPU");
 
-      cv::Mat image(lheight, lwidth, CV_8UC4, pixels);
-      MsClock u;
-      cv::resize(image, image, cv::Size(720, 1280));
-      LOGI("res %d", u.get());
-      u.reset();
-      //cv::cvtColor(image, image, cv::COLOR_RGBA2GRAY);
-      //LOGI("gray %d", u.get());
-      u.reset();
-      cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
-      LOGI("rot %d", u.get());
-      u.reset();
+      imgloadFuture = std::async(std::launch::async, [lheight, lwidth, this] {
+          cv::Mat image(lheight, lwidth, CV_8UC4, this->pixels);
+          cv::resize(image, image, cv::Size(1280, 720));
+          cv::cvtColor(image, image, cv::COLOR_RGBA2GRAY);
+          cv::rotate(image, image, cv::ROTATE_90_CLOCKWISE);
 
-      delete[] pixels;
+          return image;
+      });
 
-      cv::Mat intrinsics = View::oglIntrinsicsToCVIntrinsics(glm4x4ToCvMat(projection_mat), image.size());
+      cv::Mat intrinsics = View::oglIntrinsicsToCVIntrinsics(glm4x4ToCvMat(projection_mat),
+                                                             cv::Size(720, 1280));
 
-      View current(image, intrinsics, extrinsics);
+      View current(cv::Mat(), intrinsics, extrinsics);
       int currentIndex = slideWindow.add_image(current);
 
       std::set<int> exbaselines;
       float ImageSamplingDensity = minBaseline;
       for (int i = 1; i < slideWindow.size(); i++) {
-          auto rel = View::getRelativeRotationAndTranslation(slideWindow.getView(-i).extrinsics, current.extrinsics);
+          auto rel = View::getRelativeRotationAndTranslation(slideWindow.getView(-i).extrinsics,
+                                                             current.extrinsics);
 
           if (rel.first < 0.1) {
-              int mbaseline = (int)(rel.second / ImageSamplingDensity);
+              int mbaseline = (int) (rel.second / ImageSamplingDensity);
               if (exbaselines.find(mbaseline) == exbaselines.end()) {
                   LOGI("Computation: %d, %d", currentIndex, currentIndex - i);
                   exbaselines.insert(mbaseline);
-                  bufferedComputations.push_back(std::make_pair(currentIndex, currentIndex - i));
+                  bufferedComputations.push_back(
+                          std::make_pair(currentIndex, currentIndex - i));
               }
           }
       }
@@ -290,8 +308,10 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     densePointRenderer_.draw(collectedScene, updatedPointsForRender, updates, projection_mat * view_mat);
     updatedPointsForRender.clear();
 
+    imgloadstatus = checkFutureStatus(imgloadFuture);
+
     // Try to start a new computation if none is running
-    for (int tidx = 0; tidx < reconstructionFuture.size() && !this->stopFutureComputations && !bufferedComputations.empty(); tidx++) {
+    for (int tidx = 0; imgloadstatus == std::future_status::ready && tidx < reconstructionFuture.size() && !this->stopFutureComputations && !bufferedComputations.empty(); tidx++) {
 
         std::future_status reconstruction_status;
         if (reconstructionFuture[tidx].valid()) {

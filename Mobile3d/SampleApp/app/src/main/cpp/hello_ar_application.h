@@ -112,9 +112,11 @@ class HelloArApplication {
   std::vector<std::vector<ScenePoint>> reconstructorOutput;
   std::list<std::vector<ScenePoint>> updatedPointsForRender;
   std::vector<std::future<void>> reconstructionFuture;
+  std::future<cv::Mat> imgloadFuture;
   int dbgidx = 0;
   std::fstream dbgexport;
   volatile bool stopFutureComputations = false;
+  GLubyte* pixels;
 
   void ConfigureSession();
 };
