@@ -169,11 +169,17 @@ public:
 				n[local % 3] = current;
 			}
 			if (local == 5) {
-				//this->addPoint(v, n, 1.0);
-				short numhits = std::round(cv::norm(n));
-				n /= cv::norm(n);
-				ScenePoint q(v, n, numhits);
-				this->addPoint(q);
+				float nnorm = cv::norm(n);
+				if (nnorm > 0.001) { // Ignore points with essentially 0 norm (avoid nan computations)
+					short numhits = std::round(nnorm);
+					if (numhits == 0) {
+						numhits = 1.0; // In order to support files where normals are not normalized and close to 0
+					}
+
+					n /= nnorm;
+					ScenePoint q(v, n, numhits);
+					this->addPoint(q);
+				}
 			}
 
 			idx++;
@@ -194,6 +200,7 @@ public:
 	Add a single scenepoint to the pointcloud. If the voxel to which the point is 
 	added is already in use, the mean of the positions and normals of all added points is computed
 	and numhits is increased by the number of hits of the added ScenePoint. (probably 1)
+	Note that adding a scenepoint with hitcount 0 or negative results in undefined behaviour.
 	*/
 	inline void addPoint(const ScenePoint& q) {
 		auto it = this->surfacePoints.template findVoxel<Levels>(q.position);

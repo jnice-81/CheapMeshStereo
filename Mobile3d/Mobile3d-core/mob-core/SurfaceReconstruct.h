@@ -147,18 +147,6 @@ private:
 		return y1 + ((y2 - y1) / (x2 - x1)) * (t - x1);
 	}
 
-	inline float confidence(const int hits) const {
-		if (hits < 1) {
-			return 0;
-		}
-		if (hits <= 3) {
-			return lininp(1, 3, 0.3, 1.5, hits);
-		}
-		else {
-			return 2;
-		}
-	}
-
 	// Compute the implicit value at p, assuming points have a scale of s
 	std::pair<double, double> computeImplicitValue(const cv::Vec3f& p, double s) const {
 		auto neighbors = scene.template findNeighborsFor<OnLevel>(p, s);
@@ -180,7 +168,7 @@ private:
 				}
 
 				double x = g.normal.dot(diff);
-				double weight = lininp(0.0, s, 1.0, 0.0, dist) * confidence(g.numhits);
+				double weight = lininp(0.0, s, 1.0, 0.0, dist) * g.numhits;
 				
 				weightedValueSum += x * weight;
 				weightSum += weight;

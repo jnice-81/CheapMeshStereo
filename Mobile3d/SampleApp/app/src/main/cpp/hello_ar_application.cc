@@ -33,9 +33,9 @@ namespace hello_ar {
 
 HelloArApplication::HelloArApplication(AAssetManager* asset_manager)
     : asset_manager_(asset_manager), collectedScene(0.03, std::vector<int>({10, 10, 4})),
-      slideWindow(20) {
+      slideWindow(5) {
 
-    const int numComputations = 3;
+    const int numComputations = 2;
     reconstructionFuture.resize(numComputations);
     reconstructorOutput.resize(numComputations);
 }
@@ -203,10 +203,8 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     // Analyze the point cloud to find max and min depth
     int32_t number_of_points = 0;
     ArPointCloud_getNumberOfPoints(ar_session_, ar_point_cloud, &number_of_points);
-    float near = 100;
-    float far = 0;
-    double meandist = 0;
-    if (number_of_points > 0) {
+    std::vector<float> distances;
+    if (number_of_points > 2) {
         const float* point_cloud_data;
         ArPointCloud_getData(ar_session_, ar_point_cloud, &point_cloud_data);
 
@@ -216,21 +214,18 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
         for (int32_t i = 0; i < number_of_points; i++) {
             cv::Vec3f p = cv::Vec3f(&point_cloud_data[i * 4]);
             float dist = cv::norm(p - pos);
-            if (dist < near) {
-                near = dist;
-            }
-            if (dist > far) {
-                far = dist;
-            }
-            meandist += dist;
+            distances.push_back(dist);
         }
     }
     else {
         return;
     }
+    std::sort(distances.begin(), distances.end());
+    float near = distances.front();
+    float far = distances.back();
     near = std::clamp(near - 0.3f, 0.3f, 100.0f);
     far = std::clamp(far + 1.0f, 0.3f, 100.0f);
-    meandist /= number_of_points;
+    float distestim = distances[static_cast<int>(0.1 * distances.size())];
 
   cv::Mat extrinsics = View::oglExtrinsicsToCVExtrinsics(glm4x4ToCvMat(view_mat));
 
@@ -239,7 +234,7 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
   if (slideWindow.size() > 0) {
       relativePose = View::getRelativeRotationAndTranslation(extrinsics, slideWindow.getView(0).extrinsics);
   }
-  float minBaseline = meandist / 10.0;
+  float minBaseline = distestim / 10.0;
   auto imgloadstatus = checkFutureStatus(imgloadFuture);
 
 
@@ -285,20 +280,15 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
       View current(cv::Mat(), intrinsics, extrinsics);
       int currentIndex = slideWindow.add_image(current);
 
-      std::set<int> exbaselines;
       float ImageSamplingDensity = minBaseline;
       for (int i = 1; i < slideWindow.size(); i++) {
           auto rel = View::getRelativeRotationAndTranslation(slideWindow.getView(-i).extrinsics,
                                                              current.extrinsics);
 
-          if (rel.first < 0.1) {
-              int mbaseline = (int) (rel.second / ImageSamplingDensity);
-              if (exbaselines.find(mbaseline) == exbaselines.end()) {
-                  LOGI("Computation: %d, %d", currentIndex, currentIndex - i);
-                  exbaselines.insert(mbaseline);
-                  bufferedComputations.push_back(
-                          std::make_pair(currentIndex, currentIndex - i));
-              }
+          if (rel.first < 0.2) {
+              LOGI("Computation: %d, %d", currentIndex, currentIndex - i);
+              bufferedComputations.push_back(
+                      std::make_pair(currentIndex, currentIndex - i));
           }
       }
   }

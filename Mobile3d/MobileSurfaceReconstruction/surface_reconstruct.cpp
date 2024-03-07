@@ -15,7 +15,8 @@ int main(int argc, char* argv[]) {
             << "Note: This is multiplied with the granularity." << std::endl
             << "minweight: The minimum weight of the implicit function for a surface to be extracted." << std::endl
             << "minviewfilter: Prefilter points to have at least so many observations. An observation is defined as one point which is lying in "
-            << "a voxel. You can also influence this value by scaling the normal of your point." << std::endl
+            << "a voxel. You can also influence this value by scaling the normal of your point. Note that this is essentially always bad for quality"
+            << "(use minweight against outliers), but might be good for speed in large scenes with lots and lots of noise." << std::endl
             << "bias: If positive use dual contouring and adapt vertices such that they fit normals, imposing the defined bias towards the center point. "
             << "If negative simply directly use the center point (a lot faster; especially for high resolutions the influence is small).";
         return 1;
@@ -42,9 +43,12 @@ int main(int argc, char* argv[]) {
 
     MsClock clock;
 
-
     Scene<1> s(granularity, std::vector<int>({ supersize }));
     s.import_xyz(input);
+
+    if (minviewfilter > 0) {
+        s.filterNumviews(minviewfilter);
+    }
 
     clock.printAndReset("Loaded pointcloud");
     std::cout << "Contains " << s.surfacePoints.getPointCount() << " voxels" << std::endl;

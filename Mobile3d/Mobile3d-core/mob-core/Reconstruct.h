@@ -149,7 +149,7 @@ public:
 			blocksearcher->compute(rectified_image1, rectified_image2, disparity);
         }
         else {
-            cv::Ptr<cv::StereoSGBM> blocksearcher = cv::StereoSGBM::create(mindisp, ndisp, 16, 8*3*9, 32*3*9, 0, 31,25, 100, 32);
+            cv::Ptr<cv::StereoSGBM> blocksearcher = cv::StereoSGBM::create(mindisp, ndisp, 16, 8*3*9, 32*3*9, 0, 31,30, 100, 32);
 			blocksearcher->compute(rectified_image1, rectified_image2, disparity);
         }
 

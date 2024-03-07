@@ -23,10 +23,11 @@ project("MOBILE3D-SAMPLE")
 
 if(CMAKE-BUILD-TYPE STREQUAL "Release")
     message("Configuring Release build")
-    add_compile_options(-O3)  # Example: Enable high level of optimization
+    add_compile_options(-O3)
+    add_compile_options(-ffast-math)
 else()
     message("Configuring Debug build")
-    add_compile_options(-g)   # Example: Enable debugging information
+    add_compile_options(-g)
 endif()
 
 # Import Opencv
