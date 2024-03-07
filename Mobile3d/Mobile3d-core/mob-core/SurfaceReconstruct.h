@@ -186,41 +186,50 @@ private:
 
 		cv::Vec3f result;
 
-		// z(p) = 2norm(g - p)
-		// u(p) = g - p
+		/*
+		F(p) = sum(n^T*m(p)) / sum(c * l(d(p)),
+		m(p) = u - p
+		d(p) = sqrt(m(p)^T * m(p))
+		l(x) = 1 - x/s
 
-		double sumZp = 0.001;
-		double sumNuz = 0;
-		cv::Vec3d sumZd = cv::Vec3d::zeros();
-		cv::Vec3d sumG = cv::Vec3d::zeros();
+		=> 
+		F'(p) = -( sum(n) * 1 / sum(c * l(d(p))))
+				+ sum(n^Tm(p)) * (1 / sum(cl(d(p)))^2) * (sum(c * 1/(sd(p)) * m(p))
+		*/
+
+		cv::Vec3f sumN = cv::Vec3f::zeros();
+		float sumcldp = 0;
+		float sumNmp = 0;
+		cv::Vec3f sumc1sdpmp = cv::Vec3f::zeros();
 
 		const float eps = 0.001;
+		const float inverseS = 1.0 / s;
 
 		for (auto& it : neighbors) {
 			int count = it.template getLevelInfo<OnLevel>().pointCount;
 			for (int i = 0; i < count; i++) {
 				ScenePoint g = it->second;
 
-				cv::Vec3d n = g.normal;
-				cv::Vec3d diff = g.position - p;
-				double z = cv::norm(diff);
+				cv::Vec3f n = g.normal;
+				cv::Vec3f diff = g.position - p;
+				float z = cv::norm(diff);
 
 				if (z > s) {
 					it++;
 					continue;
 				}
 
-				cv::Vec3d zd = -(2.0 / (z + eps)) * diff;
-				sumZp += z;
-				sumG += n * z + n.dot(diff) * zd;
-				sumNuz += n.dot(diff) * z;
-				sumZd += zd;
+				sumN += n;
+				sumcldp += g.numhits * lininp(0.0, s, 1.0, 0.0, z);
+				sumNmp += n.dot(diff);
+				sumc1sdpmp += g.numhits * (1.0f / (s * z)) * diff;
 
 				it++;
 			}
 		}
 
-		result = (1.0 / (sumZp + eps)) * sumG + sumNuz * (1.0 / (sumZp * sumZp + eps)) * sumZd;
+		result = -(sumN * (1.0 / sumcldp)) + sumNmp * (1.0f / (sumcldp * sumcldp)) * sumc1sdpmp;
+		result *= -1;
 		return cv::normalize(result);
 	}
 
@@ -487,7 +496,7 @@ public:
 	NormalsCacheSize: The size of the cache used for storing derivatives of the implicit function. If bias negative this cache is not used.
 	*/
 	SurfaceReconstruct(SceneType &scene, float minweight = 1.0, float scalefactor = 3.0, 
-			const int CornerCacheSize = 30000, float bias = -1.0, const int NormalsCacheSize = 0):
+			const int CornerCacheSize = 50000, float bias = -1.0, const int NormalsCacheSize = 0):
 		minweight(minweight), scalefactor(scalefactor), scene(scene), svoxel(scene.retrieveVoxelSidelength(Levels), std::vector<int>({ 5 })),
 		bias(bias), CornerCacheSize(CornerCacheSize), NormalsCacheSize(NormalsCacheSize)
 	{
