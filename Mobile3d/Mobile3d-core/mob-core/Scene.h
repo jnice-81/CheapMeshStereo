@@ -190,12 +190,6 @@ public:
 		f.close();
 	}
 
-	void normalizeNormals() {
-		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			it->second.normal = it->second.normal / (cv::norm(it->second.normal) + 0.00001);
-		}
-	}
-
 	/*
 	Add a single scenepoint to the pointcloud. If the voxel to which the point is 
 	added is already in use, the mean of the positions and normals of all added points is computed

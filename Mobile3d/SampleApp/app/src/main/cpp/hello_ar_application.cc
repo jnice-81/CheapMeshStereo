@@ -375,7 +375,6 @@ void HelloArApplication::OnDrawFrame(bool depthColorVisualizationEnabled,
     stopFutureComputations = true;
     LOGI("STarted");
 
-    collectedScene.normalizeNormals();
     collectedScene.export_xyz("/data/data/com.google.ar.core.examples.c.helloar/out.xyz");
     SurfaceReconstruct<2, 3> reconstruct(collectedScene, 5, 3.5);
     reconstruct.computeSurface();

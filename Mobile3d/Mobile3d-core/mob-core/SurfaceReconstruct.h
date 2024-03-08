@@ -167,7 +167,8 @@ private:
 					continue;
 				}
 
-				double x = g.normal.dot(diff);
+				cv::Vec3f n = cv::normalize(g.normal);
+				double x = n.dot(diff);
 				double weight = lininp(0.0, s, 1.0, 0.0, dist) * g.numhits;
 				
 				weightedValueSum += x * weight;
@@ -210,7 +211,6 @@ private:
 			for (int i = 0; i < count; i++) {
 				ScenePoint g = it->second;
 
-				cv::Vec3f n = g.normal;
 				cv::Vec3f diff = g.position - p;
 				float z = cv::norm(diff);
 
@@ -219,6 +219,7 @@ private:
 					continue;
 				}
 
+				cv::Vec3f n = cv::normalize(g.normal);
 				sumN += n;
 				sumcldp += g.numhits * lininp(0.0, s, 1.0, 0.0, z);
 				sumNmp += n.dot(diff);
