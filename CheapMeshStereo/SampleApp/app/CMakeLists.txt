@@ -19,7 +19,7 @@
 # Sets the minimum version of CMake required to build the native library.
 
 cmake_minimum_required(VERSION 3.4.1)
-project("MOBILE3D-SAMPLE")
+project("CheapMeshStereo-SAMPLE-APP")
 
 if(CMAKE-BUILD-TYPE STREQUAL "Release")
     message("Configuring Release build")

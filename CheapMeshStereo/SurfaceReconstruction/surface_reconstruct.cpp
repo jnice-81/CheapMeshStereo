@@ -1,5 +1,5 @@
-#include "../Mobile3d-core/mob-core/helpers.h"
-#include "../Mobile3d-core/mob-core/SurfaceReconstruct.h"
+#include "../CheapMeshStereo-core/CheapMeshStereoCore/helpers.h"
+#include "../CheapMeshStereo-core/CheapMeshStereoCore/SurfaceReconstruct.h"
 #include <cmath>
 
 int main(int argc, char* argv[]) {

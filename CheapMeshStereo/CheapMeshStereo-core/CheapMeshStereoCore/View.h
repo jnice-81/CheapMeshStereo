@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 
 /*
 A class storing an image, it's associated intrinsics and extrinsics, both in opencv format.

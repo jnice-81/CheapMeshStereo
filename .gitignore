@@ -33,20 +33,15 @@
 
 # Linux
 .vscode/
-Mobile3d/Mobile3d-core/main
 
 # common
 3dmodels/
 
 #windows
 .vs
-Mobile3d/winlib/
+CheapMeshStereo/winlib/
 Debug/
 Release/
-*.vcxproj
-*.filters
-*.user
-Mobile3d.sln
 
 #libs
 OpenCV-android-sdk-4.8.0/
