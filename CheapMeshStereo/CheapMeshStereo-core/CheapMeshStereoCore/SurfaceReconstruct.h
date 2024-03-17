@@ -49,13 +49,19 @@ private:
 	public:
 		SurfaceVoxel()
 		{
-			for (int i = 0; i < 3; i++) {
-				faces[i] = false;
-			}
+			boolstorage = 0;
 		}
 
 		cv::Vec3f pos;
-		bool faces[3];
+		char boolstorage;
+
+		inline bool getFace(const int idx) const {
+			return (boolstorage & (1 << idx)) != 0;
+		}
+
+		inline void setFaceTrue(const int idx) {
+			boolstorage = (0b1 << idx) | boolstorage;
+		}
 	};
 
 	/*
@@ -316,7 +322,7 @@ private:
 					if ((ck1.first >= 0 != ck2.first >= 0 || ck1.first == 0 && ck2.first != 0 || ck1.first != 0 && ck2.first == 0) &&
 						ck1.second > minweight && ck2.second > minweight) {
 						if (g1 == 0 && g2 == 0) {
-							result.faces[j] = true;
+							result.setFaceTrue(j);
 						}
 
 						changePoints.push_back(basepoint + linearAdapt(ck1.first, ck2.first) * edgevec);
@@ -569,10 +575,10 @@ public:
 		auto it = svoxel.surfacePoints.treeIteratorBegin();
 		while (!it.isEnd()) {
 
-			const auto& c = it->second;
+			const SurfaceVoxel& c = it->second;
 
 			for (int i = 0; i < 3; i++) {
-				if (c.faces[i]) {
+				if (c.getFace(i)) {
 					exportFace(vertices, vPos, faces, it->first, relativeNeighbors[i]);
 				}
 			}
