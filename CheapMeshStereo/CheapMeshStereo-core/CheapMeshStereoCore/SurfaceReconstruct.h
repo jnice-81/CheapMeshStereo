@@ -62,6 +62,14 @@ private:
 		inline void setFaceTrue(const int idx) {
 			boolstorage = (0b1 << idx) | boolstorage;
 		}
+
+		inline bool getNormal(const int idx) const {
+			return (boolstorage & (1 << (idx + 3))) != 0;
+		}
+
+		inline void setNormalTrue(const int idx) {
+			boolstorage = (0b1 << (idx + 3)) | boolstorage;
+		}
 	};
 
 	/*
@@ -84,8 +92,8 @@ private:
 	float minweight;
 	float scalefactor;
 	float bias;
-	int CornerCacheSize = 30000;
-	int NormalsCacheSize = 5000;
+	int CornerCacheSize;
+	int NormalsCacheSize;
 	// The actual storage of the mesh
 	HierachicalVoxelGrid<1, SurfaceVoxel> svoxel;
 	SceneType& scene;
@@ -323,6 +331,9 @@ private:
 						ck1.second > minweight && ck2.second > minweight) {
 						if (g1 == 0 && g2 == 0) {
 							result.setFaceTrue(j);
+							if (ck1 < ck2 && j != 1 || ck1 > ck2 && j == 1) {
+								result.setNormalTrue(j);
+							}
 						}
 
 						changePoints.push_back(basepoint + linearAdapt(ck1.first, ck2.first) * edgevec);
@@ -446,7 +457,11 @@ private:
 
 	// Export a face, adding all vertices to the output list if not already present (Otherwise the existing indices are used)
 	inline void exportFace(std::vector<CopyArray<float, 3>>& vertices, HierachicalVoxelGrid<1, int>& vPos, std::vector<CopyArray<int, 6>>& faces,
-		const cv::Vec3i& base, const std::vector<cv::Vec3i>& relativeIncludes) {
+		const cv::Vec3i& base, const std::vector<cv::Vec3i>& relativeIncludes, bool normdir) {
+
+		/*if (!normdir) {
+			return;
+		}*/
 
 		int result[6];
 		for (int i = 0; i < 4; i++) {
@@ -458,23 +473,45 @@ private:
 			}
 
 			int currentPos = alloc.first;
-			switch (i)
-			{
-			case 0:
-				result[0] = currentPos;
-				break;
-			case 1:
-				result[1] = currentPos;
-				result[3] = currentPos;
-				break;
-			case 2:
-				result[2] = currentPos;
-				result[4] = currentPos;
-				break;
-			case 3:
-				result[5] = currentPos;
-				break;
+			if (normdir) {
+				switch (i)
+				{
+				case 0:
+					result[0] = currentPos;
+					result[3] = currentPos;
+					break;
+				case 1:
+					result[2] = currentPos;
+					break;
+				case 2:
+					result[1] = currentPos;
+					result[5] = currentPos;
+					break;
+				case 3:
+					result[4] = currentPos;
+					break;
+				}
 			}
+			else {
+				switch (i)
+				{
+				case 0:
+					result[0] = currentPos;
+					result[3] = currentPos;
+					break;
+				case 1:
+					result[1] = currentPos;
+					break;
+				case 2:
+					result[2] = currentPos;
+					result[4] = currentPos;
+					break;
+				case 3:
+					result[5] = currentPos;
+					break;
+				}
+			}
+			
 		}
 
 		faces.push_back(result);
@@ -595,9 +632,9 @@ public:
 	void toConnectedMesh(std::vector<CopyArray<float, 3>>& vertices, std::vector<CopyArray<int, 6>>& faces) {
 		HierachicalVoxelGrid<1, int> vPos(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5 }));
 		std::vector<std::vector<cv::Vec3i>> relativeNeighbors = { 
-			{cv::Vec3i(0, 0, 0), cv::Vec3i(0, -1, 0), cv::Vec3i(0, 0, -1), cv::Vec3i(0, -1, -1)},
-			{cv::Vec3i(0, 0, 0), cv::Vec3i(-1, 0, 0), cv::Vec3i(0, 0, -1), cv::Vec3i(-1, 0, -1)},
-			{cv::Vec3i(0, 0, 0), cv::Vec3i(-1, 0, 0), cv::Vec3i(0, -1, 0), cv::Vec3i(-1, -1, 0)}};
+			{cv::Vec3i(0, 0, 0), cv::Vec3i(0, -1, 0), cv::Vec3i(0, -1, -1), cv::Vec3i(0, 0, -1)},
+			{cv::Vec3i(0, 0, 0), cv::Vec3i(-1, 0, 0), cv::Vec3i(-1, 0, -1), cv::Vec3i(0, 0, -1)},
+			{cv::Vec3i(0, 0, 0), cv::Vec3i(-1, 0, 0), cv::Vec3i(-1, -1, 0), cv::Vec3i(0, -1, 0)}};
 
 		auto it = svoxel.surfacePoints.treeIteratorBegin();
 		while (!it.isEnd()) {
@@ -606,7 +643,7 @@ public:
 
 			for (int i = 0; i < 3; i++) {
 				if (c.getFace(i)) {
-					exportFace(vertices, vPos, faces, it->first, relativeNeighbors[i]);
+					exportFace(vertices, vPos, faces, it->first, relativeNeighbors[i], c.getNormal(i));
 				}
 			}
 
