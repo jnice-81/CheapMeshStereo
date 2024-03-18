@@ -522,6 +522,7 @@ public:
 		}
 
 		std::unordered_set<cv::Vec3i, VecHash> select;
+		select.reserve(50);
 
 		for (int x = 0; x <= (int)(l1radi[0] / voxelSidelength) + 1; x++) {
 			for (int y = 0; y <= (int)(l1radi[1] / voxelSidelength) + 1; y++) {

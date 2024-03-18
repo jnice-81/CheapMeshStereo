@@ -246,7 +246,7 @@ private:
 	}
 
 	// Computes a single SurfaceVoxel at a position
-	inline void computeSurfaceFor(const cv::Vec3i voxel, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors) {
+	inline SurfaceVoxel computeSurfaceFor(const cv::Vec3i voxel, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors) {
 
 		SurfaceVoxel result;
 		float sidelength = svoxel.retrieveVoxelSidelength(1);
@@ -357,12 +357,11 @@ private:
 		}
 
 		if (changePoints.size() == 0) {
-			return;
+			return result;
 		}
-		else {
-			// Code above will add ourselfs as a neighbor if there is at least one face. This should be prevented.
-			foundneighbors.erase(voxel);
-		}
+		
+		// Code above will add ourselfs as a neighbor if there is at least one face. This should be prevented.
+		foundneighbors.erase(voxel);
 
 		// Find the mean position of all edgecrossings of faces. This is a "good" position for the vertex
 		cv::Vec3f meanPos = cv::Vec3f::zeros();
@@ -421,9 +420,7 @@ private:
 			result.pos = meanPos;
 		}
 		
-
-		cv::Vec3f insert_point = svoxel.retrievePoint(voxel, 1);
-		svoxel.surfacePoints.insert_or_update(insert_point, result);
+		return result;
 	}
 
 	// Allocate or return a vertex in the list (used during mesh conversion)
@@ -517,6 +514,34 @@ public:
 	It can in principle be called multiple times without affecting the result.
 	*/
 	void computeSurface() {
+
+		std::vector<cv::Vec3i> dfs_stack;
+		std::unordered_set<cv::Vec3i, VecHash> neighbors;
+
+		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
+			dfs_stack.push_back(it->first);
+
+			while (!dfs_stack.empty()) {
+				cv::Vec3i voxel = dfs_stack.back();
+				dfs_stack.pop_back();
+				cv::Vec3f vpoint = svoxel.retrievePoint(voxel, 1);
+
+				if (svoxel.surfacePoints.findVoxel<1>(vpoint).isEnd()) {
+					
+					SurfaceVoxel r = computeSurfaceFor(voxel, neighbors);
+					svoxel.surfacePoints.insert_or_update(vpoint, r);
+					for (const auto& n : neighbors) {
+						if (svoxel.surfacePoints.findVoxel<1>(svoxel.retrievePoint(n, 1)).isEnd()) {
+							dfs_stack.push_back(n);
+						}
+					}
+					neighbors.clear();
+
+				}
+			} 
+		}
+
+		/*
 		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
 
 		// Note: This uses a HierarchicalVoxelGrid to make sure that closeby voxels are computed roughly in order
@@ -531,7 +556,8 @@ public:
 		while (currentComputationVoxels.surfacePoints.getPointCount() > 0) {
 			
 			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-				computeSurfaceFor(it->first, currentOutput);
+				SurfaceVoxel r = computeSurfaceFor(it->first, currentOutput);
+				svoxel.surfacePoints.insert_or_update(svoxel.retrievePoint(it->first, 1), r);
 
 				for (const auto& n : currentOutput) {
 					if (currentComputationVoxels.surfacePoints.findVoxel<CacheLocalityLevels>(svoxel.retrievePoint(n, 1)).isEnd() 
@@ -553,6 +579,7 @@ public:
 			}
 			futureComputationVoxels.clear();
 		}
+		*/
 
 	}
 
