@@ -89,6 +89,7 @@ private:
 		std::unordered_map<cv::Vec3i, std::pair<float, float>, VecHash> cornerCache;
 		std::deque<cv::Vec3i> cornerCacheOrder;
 		std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
+		std::deque<std::pair<cv::Vec3i, cv::Vec3i>> normalsCacheOrder;
 		int CornerCacheSize;
 		int NormalsCacheSize;
 		
@@ -155,11 +156,15 @@ private:
 		inline void storeNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, const std::vector<std::pair<cv::Vec3f, bool>>& store) {
 			for (std::size_t i = 0; i < indizes.size(); i++) {
 				if (!store[i].second) {
-					normalsCache.insert(std::make_pair(indizes[i], store[i].first));
+					const bool success = normalsCache.insert(std::make_pair(indizes[i], store[i].first)).second;
+					if (success) {
+						normalsCacheOrder.push_back(indizes[i]);
+					}
 				}
 			}
 			while (normalsCache.size() > NormalsCacheSize) {
-				normalsCache.erase(normalsCache.begin());
+				normalsCache.erase(normalsCacheOrder.front());
+				normalsCacheOrder.pop_front();
 			}
 		}
 	};
