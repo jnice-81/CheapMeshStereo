@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     else {
         NormalCacheSize = 10000;
     }
-    int supersize = static_cast<int>(std::ceil(scale));
+    int supersize = static_cast<int>(std::ceil(scale + 0.3));
     if (supersize == scale) {
         supersize += 1;
     }
