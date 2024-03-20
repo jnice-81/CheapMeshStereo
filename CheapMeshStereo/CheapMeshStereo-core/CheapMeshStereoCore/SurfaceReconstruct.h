@@ -211,6 +211,39 @@ private:
 				weightedValueSum += x * weight;
 				weightSum += weight;
 
+				/*
+				Paper implicit function. May contain bugs. (Not used because of simplicity, especially for
+				differentiation)
+
+				double x = g.normal.dot(diff);
+				double sigma = s / 3;
+				double basis = x / (sigma * sigma * sigma * sigma * 2 * 3.14) * std::exp((-1 / (2 * sigma * sigma)) * dist * dist);
+
+				double distYZ = cv::norm(diff - x * g.normal);
+				double weightYZ;
+				if (distYZ < s) {
+					weightYZ = (2.0f / 27.0f) * ((distYZ * distYZ * distYZ) / (sigma * sigma * sigma)) - (1.0f / 3.0f) * ((distYZ * distYZ) / (sigma * sigma)) + 1.0f;
+				}
+				else {
+					weightYZ = 0;
+				}
+				double weightX;
+				if (x < 0 && x > -s) {
+					weightX = ((1.0f / 9.0f) * x * x) / (sigma * sigma) + (2.0f / 3.0f) * (x / sigma) + 1.0f;
+				}
+				else if (x > 0 && x < s) {
+					weightX = ((2.0f / 27.0f) * ((x * x * x) / (sigma * sigma * sigma))) - (1.0f / 3.0f) * ((x * x) / (sigma * sigma)) + 1;
+				}
+				else {
+					weightX = 0;
+				}
+
+				double weight = weightX * weightYZ * g.numhits;
+
+				weightedValueSum += x * weight;
+				weightSum += weight;
+				*/
+
 				it++;
 			}
 		}

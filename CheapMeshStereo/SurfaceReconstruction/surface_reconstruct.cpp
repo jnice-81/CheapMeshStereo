@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
     clock.printAndReset("Loaded pointcloud");
     std::cout << "Contains " << s.surfacePoints.getPointCount() << " voxels" << std::endl;
 
-    SurfaceReconstruct<0, 1> r(s, minweight, scale, 3000, bias, NormalCacheSize);
+    SurfaceReconstruct<0, 1> r(s, minweight, scale, 20000, bias, NormalCacheSize);
     r.computeSurface();
 
     clock.printAndReset("Computed Surface");
