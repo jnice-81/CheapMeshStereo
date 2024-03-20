@@ -85,9 +85,84 @@ private:
 		}
 	};
 
-	// The caches storing the implicit value of the function for particular corners respectively edges where a face crosses
-	std::unordered_map<cv::Vec3i, std::pair<float, float>, VecHash> cornerCache;
-	std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
+	class Cache {
+		std::unordered_map<cv::Vec3i, std::pair<float, float>, VecHash> cornerCache;
+		std::deque<cv::Vec3i> cornerCacheOrder;
+		std::unordered_map<std::pair<cv::Vec3i, cv::Vec3i>, cv::Vec3f, VecPairHasher> normalsCache;
+		int CornerCacheSize;
+		int NormalsCacheSize;
+		
+	public:
+
+		Cache(int CornerCacheSize, int NormalsCacheSize) : 
+			CornerCacheSize(CornerCacheSize), NormalsCacheSize(NormalsCacheSize)
+		{
+			cornerCache.reserve(CornerCacheSize + 8);
+			normalsCache.reserve(NormalsCacheSize + 12);
+		}
+
+		// Loads all corner cache values for a voxel
+		inline void loadCache(const cv::Vec3i& voxel, bool implicitCacheValid[2][2][2], std::pair<float, float> implicitVals[2][2][2]) const {
+			for (int x = 0; x < 2; x++) {
+				for (int y = 0; y < 2; y++) {
+					for (int z = 0; z < 2; z++) {
+						auto it = cornerCache.find(voxel + cv::Vec3i(x, y, z));
+						if (it != cornerCache.end()) {
+							implicitCacheValid[x][y][z] = true;
+							implicitVals[x][y][z] = it->second;
+						}
+						else {
+							implicitCacheValid[x][y][z] = false;
+						}
+					}
+				}
+			}
+		}
+
+		// Stores all corner cache values for a voxel
+		inline void storeCache(const cv::Vec3i& voxel, std::pair<float, float> implicitVals[2][2][2]) {
+			for (int x = 0; x < 2; x++) {
+				for (int y = 0; y < 2; y++) {
+					for (int z = 0; z < 2; z++) {
+						cv::Vec3i idx = voxel + cv::Vec3i(x, y, z);
+						const bool success = cornerCache.insert(std::make_pair(idx, implicitVals[x][y][z])).second;
+						if (success) {
+							cornerCacheOrder.push_back(idx);
+						}
+					}
+				}
+			}
+			while (cornerCache.size() > CornerCacheSize) {
+				cornerCache.erase(cornerCacheOrder.front());
+				cornerCacheOrder.pop_front();
+			}
+		}
+
+		// Load all normal cache values for a list of edges
+		inline void loadNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, std::vector<std::pair<cv::Vec3f, bool>>& out) {
+			for (const auto& idx : indizes) {
+				auto it = normalsCache.find(idx);
+				if (it == normalsCache.end()) {
+					out.push_back(std::make_pair(cv::Vec3f(), false));
+				}
+				else {
+					out.push_back(std::make_pair(it->second, true));
+				}
+			}
+		}
+
+		// Store all normal cache values for a list of edges
+		inline void storeNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, const std::vector<std::pair<cv::Vec3f, bool>>& store) {
+			for (std::size_t i = 0; i < indizes.size(); i++) {
+				if (!store[i].second) {
+					normalsCache.insert(std::make_pair(indizes[i], store[i].first));
+				}
+			}
+			while (normalsCache.size() > NormalsCacheSize) {
+				normalsCache.erase(normalsCache.begin());
+			}
+		}
+	};
 
 	float minweight;
 	float scalefactor;
@@ -98,63 +173,6 @@ private:
 	HierachicalVoxelGrid<1, SurfaceVoxel> svoxel;
 	SceneType& scene;
 
-
-	// Loads all corner cache values for a voxel
-	inline void loadCache(const cv::Vec3i &voxel, bool implicitCacheValid[2][2][2], std::pair<float, float> implicitVals[2][2][2]) const {
-		for (int x = 0; x < 2; x++) {
-			for (int y = 0; y < 2; y++) {
-				for (int z = 0; z < 2; z++) {
-					auto it = cornerCache.find(voxel + cv::Vec3i(x, y, z));
-					if (it != cornerCache.end()) {
-						implicitCacheValid[x][y][z] = true;
-						implicitVals[x][y][z] = it->second;
-					}
-					else {
-						implicitCacheValid[x][y][z] = false;
-					}
-				}
-			}
-		}
-	}
-
-	// Stores all corner cache values for a voxel
-	inline void storeCache(const cv::Vec3i& voxel, std::pair<float, float> implicitVals[2][2][2]) {
-		for (int x = 0; x < 2; x++) {
-			for (int y = 0; y < 2; y++) {
-				for (int z = 0; z < 2; z++) {
-					cornerCache.insert(std::make_pair(voxel + cv::Vec3i(x, y, z), implicitVals[x][y][z]));
-				}
-			}
-		}
-		while (cornerCache.size() > CornerCacheSize) {
-			cornerCache.erase(cornerCache.begin());
-		}
-	}
-
-	// Load all normal cache values for a list of edges
-	inline void loadNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, std::vector<std::pair<cv::Vec3f, bool>>& out) {
-		for (const auto& idx : indizes) {
-			auto it = normalsCache.find(idx);
-			if (it == normalsCache.end()) {
-				out.push_back(std::make_pair(cv::Vec3f(), false));
-			}
-			else {
-				out.push_back(std::make_pair(it->second, true));
-			}
-		}
-	}
-
-	// Store all normal cache values for a list of edges
-	inline void storeNormalCache(const std::vector<std::pair<cv::Vec3i, cv::Vec3i>>& indizes, const std::vector<std::pair<cv::Vec3f, bool>>& store) {
-		for (std::size_t i = 0; i < indizes.size(); i++) {
-			if (!store[i].second) {
-				normalsCache.insert(std::make_pair(indizes[i], store[i].first));
-			}
-		}
-		while (normalsCache.size() > NormalsCacheSize) {
-			normalsCache.erase(normalsCache.begin());
-		}
-	}
 
 	// Perform linear interpolation
 	inline float lininp(float x1, float x2, float y1, float y2, float t) const {
@@ -254,7 +272,8 @@ private:
 	}
 
 	// Computes a single SurfaceVoxel at a position
-	inline SurfaceVoxel computeSurfaceFor(const cv::Vec3i voxel, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors) {
+	inline void computeSurfaceFor(const cv::Vec3i voxel, std::unordered_set<cv::Vec3i, VecHash> &foundneighbors,
+		Cache &cache) {
 
 		SurfaceVoxel result;
 		float sidelength = svoxel.retrieveVoxelSidelength(1);
@@ -264,7 +283,7 @@ private:
 		bool implicitCacheValid[2][2][2];
 		std::pair<float, float> implicitVals[2][2][2];
 		
-		loadCache(voxel, implicitCacheValid, implicitVals);
+		cache.loadCache(voxel, implicitCacheValid, implicitVals);
 
 		cv::Vec3f zeroPoint = svoxel.retrieveCornerPoint(voxel, 1);
 		for (int x = 0; x < 2; x++) {
@@ -278,7 +297,7 @@ private:
 			}
 		}
 
-		storeCache(voxel, implicitVals);
+		cache.storeCache(voxel, implicitVals);
 
 		// Determine points on the edges of the voxel where an edge passes trough
 		// (Function negative on one side, positive on the other and the weight is large enough at both sides)
@@ -368,7 +387,7 @@ private:
 		}
 
 		if (changePoints.size() == 0) {
-			return result;
+			return;
 		}
 		
 		// Code above will add ourselfs as a neighbor if there is at least one face. This should be prevented.
@@ -386,7 +405,7 @@ private:
 		if (bias >= 0) {
 			std::vector<std::pair<cv::Vec3f, bool>> loadedNormalCache;
 			loadedNormalCache.reserve(changePoints.size());
-			loadNormalCache(normalCacheIdx, loadedNormalCache);
+			cache.loadNormalCache(normalCacheIdx, loadedNormalCache);
 
 			int matrixSize = changePoints.size() + 3;
 			cv::Mat A = cv::Mat(matrixSize, 3, CV_32F);
@@ -406,7 +425,7 @@ private:
 				b.at<float>(i, 0) = n.dot(changePoints[i]);
 			}
 
-			storeNormalCache(normalCacheIdx, loadedNormalCache);
+			cache.storeNormalCache(normalCacheIdx, loadedNormalCache);
 
 
 			cv::Vec3f nX = cv::Vec3f(bias, 0, 0);
@@ -431,7 +450,7 @@ private:
 			result.pos = meanPos;
 		}
 		
-		return result;
+		svoxel.surfacePoints.insert_or_update(svoxel.retrievePoint(voxel, 1), result);
 	}
 
 	// Allocate or return a vertex in the list (used during mesh conversion)
@@ -541,8 +560,7 @@ public:
 		minweight(minweight), scalefactor(scalefactor), scene(scene), svoxel(scene.retrieveVoxelSidelength(Levels), std::vector<int>({ 5 })),
 		bias(bias), CornerCacheSize(CornerCacheSize), NormalsCacheSize(NormalsCacheSize)
 	{
-		cornerCache.reserve(CornerCacheSize + 8);
-		normalsCache.reserve(NormalsCacheSize + 12);
+		
 	}
 
 	/*
@@ -551,40 +569,15 @@ public:
 	It can in principle be called multiple times without affecting the result.
 	*/
 	void computeSurface() {
-
-		std::vector<cv::Vec3i> dfs_stack;
-		std::unordered_set<cv::Vec3i, VecHash> neighbors;
-
-		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-			dfs_stack.push_back(it->first);
-
-			while (!dfs_stack.empty()) {
-				cv::Vec3i voxel = dfs_stack.back();
-				dfs_stack.pop_back();
-				cv::Vec3f vpoint = svoxel.retrievePoint(voxel, 1);
-
-				if (svoxel.surfacePoints.findVoxel<1>(vpoint).isEnd()) {
-					
-					SurfaceVoxel r = computeSurfaceFor(voxel, neighbors);
-					svoxel.surfacePoints.insert_or_update(vpoint, r);
-					for (const auto& n : neighbors) {
-						if (svoxel.surfacePoints.findVoxel<1>(svoxel.retrievePoint(n, 1)).isEnd()) {
-							dfs_stack.push_back(n);
-						}
-					}
-					neighbors.clear();
-
-				}
-			} 
-		}
-
-		/*
+		Cache cache(CornerCacheSize, NormalsCacheSize);
 		std::unordered_set<cv::Vec3i, VecHash> futureComputationVoxels, pastComputationVoxels, currentOutput;
 
 		// Note: This uses a HierarchicalVoxelGrid to make sure that closeby voxels are computed roughly in order
-		// giving large speedups, because it increases cache locality. The bool is actually not used (more a set here)
-		constexpr int CacheLocalityLevels = 2;
-		HierachicalVoxelGrid<CacheLocalityLevels, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5 }));
+		// giving large speedups, because it increases cache locality. (For the implicit function cache, maybe also 
+		// for memory access)
+		// The bool is actually not used (used as a set here)
+		constexpr int CacheLocalityLevels = 3;
+		HierachicalVoxelGrid<CacheLocalityLevels, bool> currentComputationVoxels(svoxel.retrieveVoxelSidelength(1), std::vector<int>({ 5, 5, 10 }));
 
 		for (auto it = scene.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
 			currentComputationVoxels.surfacePoints.insert_or_update(it->second.position, false);
@@ -593,8 +586,7 @@ public:
 		while (currentComputationVoxels.surfacePoints.getPointCount() > 0) {
 			
 			for (auto it = currentComputationVoxels.surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
-				SurfaceVoxel r = computeSurfaceFor(it->first, currentOutput);
-				svoxel.surfacePoints.insert_or_update(svoxel.retrievePoint(it->first, 1), r);
+				computeSurfaceFor(it->first, currentOutput, cache);
 
 				for (const auto& n : currentOutput) {
 					if (currentComputationVoxels.surfacePoints.findVoxel<CacheLocalityLevels>(svoxel.retrievePoint(n, 1)).isEnd() 
@@ -616,8 +608,6 @@ public:
 			}
 			futureComputationVoxels.clear();
 		}
-		*/
-
 	}
 
 	/*
