@@ -1,14 +1,18 @@
 # CheapMeshStereo
-This repository contains two things: First a real time image to mesh pipeline, written in c++ using only CPU, consisting of three semiindependent modules: Stereo Vision, Point cloud representation and Surface extraction. Secondly and a sample android APP which uses the pipeline to generate meshes of scenes scanned with the camera.
+This repository contains two things: First a real time posed image to mesh pipeline, written in c++ using only CPU, consisting of three semiindependent modules: Stereo Vision, Point cloud representation and Surface extraction. Secondly and a sample android APP which uses the pipeline to generate meshes of scenes scanned with the camera.
+
 For now only the point cloud collection and visualization is done in realtime, the mesh generation is done in a later step. Time depends on the scene size and point cloud resolution, but is usually far below one minute.
 
 To see some results checkout https://drive.google.com/drive/folders/1-nPmOGR-nMf234L9wkdjvAOtcNwJ7jJG?usp=sharing
 
 ## Whom could this be interesting for
 
-First: The pipeline focuses on efficiency, less so on quality, so this is not the right thing if you are interested in nice looking 3d models. Apart from that:
+First things first: The pipeline focuses on efficiency, less so on quality, so this is not the right thing if you are interested in nice looking 3d models (more so if you require 3d models for technical tasks). 
+Also the purpose of the App was to test/showcase the pipeline, it is definitively not end user friendly. 
 
-1. Well if you are interested in a fast and portable image to mesh pipeline ;). If quality is of more concern than speed/memory take a look at [OpenMVS](https://github.com/cdcseacave/openMVS)
+Apart from that:
+
+1. Well if you are interested in a fast and portable image to mesh pipeline ;). If quality is of more concern than performance take a look at [OpenMVS](https://github.com/cdcseacave/openMVS)
 2. Point cloud storage. There are large libraries for dealing with point clouds, e.g. [PCL](https://github.com/PointCloudLibrary/pcl). Could still be interesting if:
     - Aim is to (swiftly) downsample a high resolution point cloud to speed up downstream tasks
     - Your situation is similar to the one here, i.e. there is some process generating/updating a point cloud and there is a need for fast updaing while always beeing able to query the current points/local regions of space efficiently
