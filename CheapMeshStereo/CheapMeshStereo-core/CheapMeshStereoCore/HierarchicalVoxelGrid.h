@@ -48,7 +48,7 @@ class TreeIterator;
 A storage class implementing a sparsly populated voxel grid with multiple levels.
 Annoying to explain in a comment, see the report.
 
-Levels: The number of Levels the Grid has
+Levels: The number of Levels the Grid has. 0 is not supported. (behaviour is undefined)
 VoxelPayload: Data to be stored on the lowest level voxels
 */
 template<int Levels, typename VoxelPayload>

@@ -9,7 +9,7 @@
 A storage for point clouds built on top of HierarchicalVoxelGrid. (Rather: It is a hierarchical voxel grid)
 Provides convenience functions, but most of the time using this, one will end up using surfacePoints of HierarchicalVoxelGrid.
 
-Levels: The number of Levels of the hierarchical Grid
+Levels: The number of Levels of the hierarchical Grid. 0 is not supported for now.
 */
 template<int Levels>
 class Scene : public HierachicalVoxelGrid<Levels, ScenePoint> {
@@ -227,7 +227,12 @@ public:
 		}
 	}
 
-	void refineNormals(float radius, int knearest) {
+	/*
+	Perform local plane fitting on the k nearest neighbors, where radius is an upper bound for the max distance.
+	Then change the normals. The initial normal is taken to decide in which of the two possible directions the 
+	normal should point.
+	*/
+	void refitNormals(float radius, int knearest) {
 		constexpr int OnLevel = 0;
 
 		for (auto it = this->surfacePoints.treeIteratorBegin(); !it.isEnd(); it++) {
