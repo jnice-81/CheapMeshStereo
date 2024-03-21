@@ -15,7 +15,7 @@ Apart from that:
 1. Well if you are interested in a fast and portable image to mesh pipeline ;). If quality is of more concern than performance take a look at [OpenMVS](https://github.com/cdcseacave/openMVS)
 2. Point cloud storage. There are large libraries for dealing with point clouds, e.g. [PCL](https://github.com/PointCloudLibrary/pcl). Could still be interesting if:
     - Aim is to (swiftly) downsample a high resolution point cloud to speed up downstream tasks
-    - Your situation is similar to the one here, i.e. there is some process generating/updating a point cloud and there is a need for fast updaing while always beeing able to query the current points/local regions of space efficiently
+    - Your situation is similar to the one here, i.e. there is some process generating/updating a point cloud and there is a need for fast updating while always being able to query the current points/local regions of space efficiently
 3. Mesh reconstruction from point clouds. [Poisson Surface Reconstruction](https://github.com/mkazhdan/PoissonRecon) is far more mature.
     - You simply want a nice, noise free mesh from an oriented point cloud: Use poisson surface reconstruction/something else than this
     - If speed is required, quality is less of a concern: Probably downsample the pointcloud with the point cloud represenation here, then use poisson surface reconstruction
@@ -31,4 +31,4 @@ The code of the pipeline is in CheapMeshStereo/CheapMeshStereo-core/CheapMeshSte
 
 ## Extending
 
-This looks like a good starting point for a project, but a crucial feature is missing/stuff is to slow: TODO ADD EXTENDING
+This looks like a good starting point for your project, but a crucial feature is missing/stuff is to slow: TODO ADD EXTENDING
