@@ -509,7 +509,7 @@ public:
 		cornerQuad = p - tmp;
 		l1radi = 2 * tmp;
 		float voxelSidelength = this->retrieveVoxelSidelength(OnLevel);
-		const float numStabilityMargin = 0.1;
+		const float numStabilityMargin = 0.2;
 		float numericalStabilityLength = numStabilityMargin * voxelSidelength;
 
 		cv::Vec3f t = cornerQuad / voxelSidelength;

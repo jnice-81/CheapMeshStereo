@@ -36,10 +36,8 @@ int main(int argc, char* argv[]) {
     else {
         NormalCacheSize = 10000;
     }
-    int supersize = static_cast<int>(std::ceil(scale + 0.3));
-    if (supersize == scale) {
-        supersize += 1;
-    }
+    // Added terms increase speed due to the numerical stability margin used by region selection
+    int supersize = static_cast<int>(std::ceil(scale + 2*0.2 + 0.05));  
 
     MsClock clock;
 
