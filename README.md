@@ -20,7 +20,7 @@ Apart from that:
     - You simply want a nice, noise free mesh from an oriented point cloud: Use poisson surface reconstruction/something else than this
     - If speed is required, quality is less of a concern: Probably downsample the pointcloud with the point cloud represenation here, then use poisson surface reconstruction
     - The fact that poisson surface reconstruction "hallucinates" surface on holes is a large issue: This implementation could be interesting
-    - The mesh should be efficiently updated given a changing point cloud. Not supported for now, but it should be relatively easy to extend it towards it. Maybe take a look at [Extending](#extending)
+    - The mesh should be efficiently updated given a changing point cloud. Not supported for now, but it should be relatively easy to extend it towards it.
   
 ## How to use
 
@@ -28,7 +28,3 @@ The pipeline heavily relies on OpenCV. It was developed and tested using OpenCV 
 
 Apart from that, it's just header files so simply include and your good to go. You could take a quick look at TODO ADD REPORT. 
 The code of the pipeline is in CheapMeshStereo/CheapMeshStereo-core/CheapMeshStereoCore. All functions/classes are commented. 
-
-## Extending
-
-This looks like a good starting point for your project, but a crucial feature is missing/stuff is to slow: TODO ADD EXTENDING
