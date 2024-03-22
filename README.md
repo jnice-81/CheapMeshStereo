@@ -20,7 +20,7 @@ Apart from that:
     - You simply want a nice, noise free mesh from an oriented point cloud: Use poisson surface reconstruction/something else than this
     - If speed is required, quality is less of a concern: Probably downsample the pointcloud with the point cloud represenation here, then use poisson surface reconstruction
     - The fact that poisson surface reconstruction "hallucinates" surface on holes is a large issue: This implementation could be interesting
-    - The mesh should be efficiently updated given a changing point cloud. Not supported for now, but it should be relatively easy to extend it towards it. Maybe take a look at [Extending](#extending)
+    - The mesh should be efficiently updated given a changing point cloud. Not supported for now, but it should be relatively easy to extend it towards it.
   
 ## License
 
