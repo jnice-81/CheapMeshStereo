@@ -36,7 +36,9 @@ int main(int argc, char* argv[]) {
     else {
         NormalCacheSize = 10000;
     }
-    int supersize = static_cast<int>(std::ceil(scale)) + 1;  
+    // Essentially pick a reasonable size for selection. Reasonable is something where the voxel size is somwhere
+    // between scale and 2*scale + a bit of overhead. So picked the middle here.
+    int supersize = static_cast<int>(std::ceil(scale * 1.5));
 
     MsClock clock;
 
