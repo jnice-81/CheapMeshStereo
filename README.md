@@ -31,5 +31,5 @@ MIT, except for everything in CheapMeshStereo\SampleApp which is licensed under 
 
 The pipeline heavily relies on OpenCV. It was developed and tested using OpenCV 4.8. 
 
-Apart from that, it's just header files so simply include and your good to go. You could take a quick look at TODO ADD REPORT. 
+Apart from that, it's just header files so simply include and your good to go. You could take a quick look at the [Report](https://github.com/jnice-81/CheapMeshStereo/blob/master/Report.pdf). 
 The code of the pipeline is in CheapMeshStereo/CheapMeshStereo-core/CheapMeshStereoCore. All functions/classes are commented. 
