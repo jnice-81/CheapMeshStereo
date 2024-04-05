@@ -25,7 +25,7 @@ Apart from that:
   
 ## License
 
-MIT, except for everything in CheapMeshStereo\SampleApp which is licensed under Apache 2. Reason is that this was built using the hello_arcore sample app by google as a starting point.
+MIT, except for everything in CheapMeshStereo\SampleApp which is licensed under Apache 2, and the things in CheapMeshStereo\androidlib which comes with their own respective license. Reason is that the SampleApp was built using the hello_arcore sample app by google as a starting point.
  
 ## How to use
 
